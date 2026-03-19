@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { scrapeSubastas, TIPO_BIEN, ESTADOS } from "@/lib/scraper";
-import { addSubastas } from "@/lib/storage";
 
 export const maxDuration = 300;
 
@@ -24,12 +23,11 @@ export async function POST(request: NextRequest) {
       maxPaginas,
     });
 
-    const todas = await addSubastas(subastas);
-
+    // Return data directly — client handles persistence
     return NextResponse.json({
       success: true,
-      nuevas: subastas.length,
-      total: todas.length,
+      subastas,
+      count: subastas.length,
     });
   } catch (error) {
     console.error("Error en scraping:", error);
