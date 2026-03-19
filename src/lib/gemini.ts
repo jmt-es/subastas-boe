@@ -1,18 +1,17 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import type { Subasta } from "./scraper";
 import type { AnalysisResult } from "./storage";
 
-function getGemini() {
+function getClient() {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY no configurada");
-  return new GoogleGenerativeAI(apiKey);
+  return new GoogleGenAI({ apiKey });
 }
 
 export async function analizarSubasta(
   subasta: Subasta
 ): Promise<AnalysisResult> {
-  const genAI = getGemini();
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const ai = getClient();
 
   const prompt = `Eres un experto en subastas judiciales españolas e inversión inmobiliaria. Analiza la siguiente subasta y devuelve un JSON con exactamente esta estructura (sin markdown, solo JSON puro):
 
@@ -51,8 +50,12 @@ ${JSON.stringify(subasta.rawData, null, 2)}
 
 IMPORTANTE: Responde SOLO con el JSON, sin bloques de código ni texto adicional.`;
 
-  const result = await model.generateContent(prompt);
-  const text = result.response.text().trim();
+  const response = await ai.models.generateContent({
+    model: "gemini-3.1-flash-lite-preview",
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+  });
+
+  const text = (response.text ?? "").trim();
 
   // Parse JSON - remove markdown code blocks if present
   let jsonStr = text;
