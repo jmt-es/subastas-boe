@@ -357,6 +357,10 @@ export default function SubastaDetalle({
               <InfoRow label="Posesión" value={subasta.situacionPosesoria} />
               <InfoRow label="Visitable" value={subasta.visitable} />
               <InfoRow label="Ref. Catastral" value={subasta.referenciaCatastral} />
+              <InfoRow label="Inscripción registral" value={subasta.inscripcionRegistral} />
+              <InfoRow label="CSV Certificación" value={subasta.csvCertificacion} />
+              <InfoRow label="Info registral electrónica" value={subasta.infoRegistralElectronica} />
+              <InfoRow label="Info adicional" value={subasta.infoAdicional} />
               <InfoRow label="Cargas" value={subasta.cargas} />
             </div>
           </TabsContent>

@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Download, X, Loader2 } from "lucide-react";
+import { Download, X, Loader2, KeyRound } from "lucide-react";
 import type { Subasta } from "@/lib/scraper";
 
 interface ScrapeDialogProps {
@@ -23,6 +23,7 @@ export function ScrapeDialog({ onClose, onComplete }: ScrapeDialogProps) {
   const [estado, setEstado] = useState("celebrandose");
   const [provincia, setProvincia] = useState("");
   const [maxPaginas, setMaxPaginas] = useState("1");
+  const [sessionId, setSessionId] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState(false);
@@ -40,6 +41,7 @@ export function ScrapeDialog({ onClose, onComplete }: ScrapeDialogProps) {
           estado,
           provincia,
           maxPaginas: parseInt(maxPaginas) || 1,
+          sessionId: sessionId.trim() || undefined,
         }),
       });
       const data = await resp.json();
@@ -153,6 +155,22 @@ export function ScrapeDialog({ onClose, onComplete }: ScrapeDialogProps) {
                 className="h-9 text-sm"
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase flex items-center gap-1">
+              <KeyRound className="h-3 w-3" />
+              SESSID BOE (opcional)
+            </label>
+            <Input
+              placeholder="Cookie de sesión para datos extra"
+              value={sessionId}
+              onChange={(e) => setSessionId(e.target.value)}
+              className="h-9 text-sm font-mono"
+            />
+            <p className="text-[9px] text-muted-foreground">
+              Loguéate en subastas.boe.es y copia la cookie SESSID para acceder a documentos
+            </p>
           </div>
 
           {result && (

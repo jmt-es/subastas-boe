@@ -11,6 +11,7 @@ export async function POST(request: NextRequest) {
       estado = "celebrandose",
       provincia = "",
       maxPaginas = 1,
+      sessionId,
     } = body;
 
     const tipoBienCode = TIPO_BIEN[tipoBien] ?? "I";
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
       estado: estadoCode,
       provincia,
       maxPaginas,
+      sessionId,
     });
 
     // Return data directly — client handles persistence

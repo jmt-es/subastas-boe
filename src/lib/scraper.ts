@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 
 const BASE_URL = "https://subastas.boe.es";
+const BASE_URL_REG = `${BASE_URL}/reg`;
 const SEARCH_URL = `${BASE_URL}/subastas_ava.php`;
 const RESULTS_PER_PAGE = 40;
 const REQUEST_DELAY = 800;
@@ -126,6 +127,10 @@ export interface Subasta {
   referenciaCatastral?: string;
   viviendaHabitual?: string;
   cargas?: string;
+  inscripcionRegistral?: string;
+  infoAdicional?: string;
+  csvCertificacion?: string;
+  infoRegistralElectronica?: string;
   // General
   anuncioBOE?: string;
   cuentaExpediente?: string;
@@ -292,6 +297,10 @@ function mapearCampos(raw: Record<string, string>): Partial<Subasta> {
     referenciaCatastral: raw["Referencia catastral"],
     viviendaHabitual: raw["Vivienda habitual"],
     cargas: raw["Cargas"],
+    inscripcionRegistral: raw["Inscripción registral"],
+    infoAdicional: raw["Información adicional"],
+    csvCertificacion: raw["CSV Certificación registral"],
+    infoRegistralElectronica: raw["Información registral electrónica"],
     // General
     anuncioBOE: raw["Anuncio BOE"],
     cuentaExpediente: raw["Cuenta expediente"],
@@ -394,8 +403,16 @@ async function obtenerDetalleSubasta(
       const html = await resp.text();
       const tabla = extraerTabla(html);
 
+      // Collect documents from ALL tabs
+      const tabDocs = extraerDocumentos(html);
+      for (const doc of tabDocs) {
+        if (!documentos.some((d) => d.url === doc.url)) {
+          documentos.push(doc);
+        }
+      }
+
       if (numVista === 1) {
-        // General info + extract documents
+        // General info
         const lotesStr = tabla["Lotes"] || "Sin lotes";
         if (lotesStr === "Sin lotes" || lotesStr === "0") {
           numLotes = 0;
@@ -404,7 +421,6 @@ async function obtenerDetalleSubasta(
           numLotes = m ? parseInt(m[0]) : 0;
         }
         Object.assign(datos, tabla);
-        documentos = extraerDocumentos(html);
       } else if (numVista === 2) {
         // Autoridad gestora - prefix keys to avoid collision with bien data
         datos["_autoridadCodigo"] = tabla["Código"] || "";
@@ -474,6 +490,7 @@ export interface ScrapeOptions {
   provincia?: string;
   maxPaginas?: number;
   delayMs?: number;
+  sessionId?: string; // BOE SESSID cookie for logged-in access
 }
 
 export interface ScrapeProgress {
@@ -494,14 +511,24 @@ export async function scrapeSubastas(
     provincia = "",
     maxPaginas = 2,
     delayMs = REQUEST_DELAY,
+    sessionId,
   } = options;
 
   cookies = [];
   const todasSubastas: Subasta[] = [];
   let pagina = 0;
 
+  // Inject session cookie if provided (logged-in access)
+  if (sessionId) {
+    cookies.push(`SESSID=${sessionId}`);
+  }
+
+  // Use /reg/ prefix when logged in to avoid 302 redirect issues on POST
+  const baseUrl = sessionId ? BASE_URL_REG : BASE_URL;
+  const searchUrl = sessionId ? `${BASE_URL_REG}/subastas_ava.php` : SEARCH_URL;
+
   // Init cookies
-  await fetchWithCookies(`${BASE_URL}/index.php`);
+  await fetchWithCookies(`${baseUrl}/index.php`);
 
   // First request: POST search form
   const formData = new URLSearchParams({
@@ -520,7 +547,7 @@ export async function scrapeSubastas(
     accion: "Buscar",
   });
 
-  let resp = await fetchWithCookies(SEARCH_URL, {
+  let resp = await fetchWithCookies(searchUrl, {
     method: "POST",
     body: formData,
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
