@@ -133,6 +133,15 @@ function buildPrompt(subasta: Subasta): string {
     }
   }
 
+  // Count available documents
+  const numDocs = subasta.documentos?.length || 0;
+  const hasCertCargas = subasta.documentos?.some(
+    (d) => d.titulo.toLowerCase().includes("carga") || d.titulo.toLowerCase().includes("certificac")
+  );
+  const hasEdicto = subasta.documentos?.some(
+    (d) => d.titulo.toLowerCase().includes("edicto")
+  );
+
   return `Eres un experto en subastas judiciales españolas, inversión inmobiliaria y análisis de riesgos legales. Analiza la siguiente subasta de forma exhaustiva y devuelve un JSON con exactamente esta estructura (sin markdown, solo JSON puro):
 
 {
@@ -143,14 +152,21 @@ function buildPrompt(subasta: Subasta): string {
   "detalles": "<análisis detallado>"
 }
 
+MUY IMPORTANTE sobre los datos:
+- Los campos con valor "No consta", "No disponible" o vacíos simplemente significan que NO están publicados en la ficha web. NO asumas que no existen.
+- Si hay documentos disponibles (edicto, certificación de cargas, etc.), eso es MUY POSITIVO. ${hasCertCargas ? "ESTA SUBASTA TIENE CERTIFICADO DE CARGAS DISPONIBLE para descargar - esto permite verificar cargas antes de pujar, lo cual REDUCE el riesgo significativamente." : ""}${hasEdicto ? " TIENE EDICTO DISPONIBLE." : ""}
+- ${numDocs > 0 ? `Hay ${numDocs} documento(s) descargables. Tenerlos es una ventaja, no un problema.` : "No hay documentos disponibles, lo que aumenta la incertidumbre."}
+- Si "Información registral electrónica" dice que no ha sido posible emitirla, eso es habitual en muchas subastas y NO es necesariamente un red flag grave — se puede obtener la nota simple presencialmente.
+- Tasación "0,00 €" significa que no se declaró tasación en la subasta, NO que el bien vale 0.
+
 Criterios de análisis:
-1. PRECIO: Compara valor de subasta vs tasación. Calcula el descuento real.
-2. UBICACIÓN: Analiza localidad, provincia, CP para estimar demanda de mercado.
-3. CARGAS Y SITUACIÓN REGISTRAL: Analiza inscripción registral, cargas, hipotecas previas.
-4. POSESIÓN: Si está ocupada (situación posesoria), factor de riesgo alto.
-5. ACREEDOR: Identifica si es banco, fondo, particular. Los bancos suelen tener procesos más limpios.
-6. DOCUMENTOS: Valora la disponibilidad de edicto, certificación de cargas.
-7. CANTIDAD RECLAMADA vs VALOR: Si la deuda es mucho menor que el valor, puede haber margen.
+1. PRECIO: Compara valor de subasta vs tasación (si existe). Estima valor de mercado por zona/m2.
+2. UBICACIÓN: Analiza localidad, provincia, CP para estimar demanda de mercado y valor real.
+3. CARGAS: Si hay certificado de cargas disponible, es un punto positivo (permite verificar). Analiza lo que se sepa.
+4. POSESIÓN: "No consta" es neutro (habitual). Si dice "ocupada" sí es factor de riesgo.
+5. ACREEDOR: Identifica si es banco, fondo, particular.
+6. DOCUMENTOS: Más documentos = más transparencia = MEJOR oportunidad. Valóralo positivamente.
+7. CANTIDAD RECLAMADA vs VALOR: Si la deuda es mucho menor que el valor, hay margen.
 8. TIPO DE BIEN: Vivienda habitual tiene protecciones especiales del deudor.
 9. PUJAS: Si hay puja actual, analiza si sigue siendo interesante.
 10. DEPÓSITO: Calcula el capital necesario para participar.
