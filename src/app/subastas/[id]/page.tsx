@@ -16,10 +16,14 @@ import {
   XCircle,
   Gavel,
   MapPin,
+  FileText,
+  Building2,
+  Phone,
+  Mail,
 } from "lucide-react";
 import Link from "next/link";
 import { useSubastas, useAnalysis } from "@/lib/use-subastas";
-import type { Subasta } from "@/lib/scraper";
+import type { Subasta, Documento } from "@/lib/scraper";
 import type { AnalysisResult } from "@/lib/storage";
 
 function formatCurrency(value?: string): string {
@@ -265,6 +269,13 @@ export default function SubastaDetalle({
           <TabsList className="mb-6">
             <TabsTrigger value="economics">Datos</TabsTrigger>
             <TabsTrigger value="bien">Bien</TabsTrigger>
+            <TabsTrigger value="partes">Partes</TabsTrigger>
+            {subasta.documentos && subasta.documentos.length > 0 && (
+              <TabsTrigger value="docs">
+                <FileText className="h-3.5 w-3.5 mr-1" />
+                Docs
+              </TabsTrigger>
+            )}
             <TabsTrigger value="raw">Raw</TabsTrigger>
             {(analysis || analyzing) && (
               <TabsTrigger value="analysis">
@@ -326,6 +337,11 @@ export default function SubastaDetalle({
                 <h3 className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
                   Descripción del Bien
                 </h3>
+                {subasta.tipoBienDetalle && (
+                  <Badge variant="secondary" className="text-[10px] ml-auto">
+                    {subasta.tipoBienDetalle}
+                  </Badge>
+                )}
               </div>
               {subasta.descripcion && (
                 <p className="text-sm leading-relaxed mb-4">
@@ -337,11 +353,93 @@ export default function SubastaDetalle({
               <InfoRow label="CP" value={subasta.codigoPostal} />
               <InfoRow label="Localidad" value={subasta.localidad} />
               <InfoRow label="Provincia" value={subasta.provincia} />
+              <InfoRow label="Vivienda habitual" value={subasta.viviendaHabitual} />
               <InfoRow label="Posesión" value={subasta.situacionPosesoria} />
               <InfoRow label="Visitable" value={subasta.visitable} />
               <InfoRow label="Ref. Catastral" value={subasta.referenciaCatastral} />
+              <InfoRow label="Cargas" value={subasta.cargas} />
             </div>
           </TabsContent>
+
+          <TabsContent value="partes" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Autoridad gestora */}
+              <div className="rounded-lg border border-border/50 bg-card/50 p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Building2 className="h-4 w-4 text-primary" />
+                  <h3 className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                    Autoridad Gestora
+                  </h3>
+                </div>
+                <InfoRow label="Descripción" value={subasta.autoridad} />
+                <InfoRow label="Código" value={subasta.autoridadCodigo} />
+                <InfoRow label="Dirección" value={subasta.autoridadDireccion} />
+                {subasta.autoridadTelefono && (
+                  <div className="flex justify-between py-2.5 border-b border-border/30 last:border-0">
+                    <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase flex items-center gap-1">
+                      <Phone className="h-3 w-3" /> Teléfono
+                    </span>
+                    <span className="font-medium text-sm">{subasta.autoridadTelefono}</span>
+                  </div>
+                )}
+                {subasta.autoridadEmail && (
+                  <div className="flex justify-between py-2.5 border-b border-border/30 last:border-0">
+                    <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase flex items-center gap-1">
+                      <Mail className="h-3 w-3" /> Email
+                    </span>
+                    <span className="font-medium text-sm">{subasta.autoridadEmail}</span>
+                  </div>
+                )}
+                <InfoRow label="Fax" value={subasta.autoridadFax} />
+              </div>
+
+              {/* Acreedor */}
+              {subasta.acreedor && (
+                <div className="rounded-lg border border-border/50 bg-card/50 p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Gavel className="h-4 w-4 text-primary" />
+                    <h3 className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                      Acreedor
+                    </h3>
+                  </div>
+                  <InfoRow label="Nombre" value={subasta.acreedor.nombre} />
+                  <InfoRow label="NIF" value={subasta.acreedor.nif} />
+                  <InfoRow label="Dirección" value={subasta.acreedor.direccion} />
+                  <InfoRow label="Localidad" value={subasta.acreedor.localidad} />
+                  <InfoRow label="Provincia" value={subasta.acreedor.provincia} />
+                  <InfoRow label="País" value={subasta.acreedor.pais} />
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {subasta.documentos && subasta.documentos.length > 0 && (
+            <TabsContent value="docs" className="space-y-4">
+              <div className="rounded-lg border border-border/50 bg-card/50 p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <FileText className="h-4 w-4 text-primary" />
+                  <h3 className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                    Documentos
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  {subasta.documentos.map((doc: Documento, i: number) => (
+                    <a
+                      key={i}
+                      href={doc.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 p-3 rounded-md border border-border/30 hover:border-primary/30 hover:bg-primary/[0.03] transition-colors group"
+                    >
+                      <FileText className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                      <span className="text-sm font-medium">{doc.titulo}</span>
+                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/50 ml-auto" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </TabsContent>
+          )}
 
           <TabsContent value="raw">
             <div className="rounded-lg border border-border/50 bg-card/50 p-6">

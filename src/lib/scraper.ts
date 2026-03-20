@@ -3,7 +3,7 @@ import * as cheerio from "cheerio";
 const BASE_URL = "https://subastas.boe.es";
 const SEARCH_URL = `${BASE_URL}/subastas_ava.php`;
 const RESULTS_PER_PAGE = 40;
-const REQUEST_DELAY = 1500;
+const REQUEST_DELAY = 800;
 
 const HEADERS: Record<string, string> = {
   "User-Agent":
@@ -84,6 +84,20 @@ export const PROVINCIAS: Record<string, string> = {
   "52": "Melilla",
 };
 
+export interface Acreedor {
+  nombre?: string;
+  nif?: string;
+  direccion?: string;
+  localidad?: string;
+  provincia?: string;
+  pais?: string;
+}
+
+export interface Documento {
+  titulo: string;
+  url: string;
+}
+
 export interface Subasta {
   id: string;
   url: string;
@@ -100,7 +114,9 @@ export interface Subasta {
   cantidadReclamada?: string;
   pujActual?: string;
   lotes?: string;
+  // Bien
   descripcion?: string;
+  tipoBienDetalle?: string;
   direccion?: string;
   codigoPostal?: string;
   localidad?: string;
@@ -108,9 +124,22 @@ export interface Subasta {
   situacionPosesoria?: string;
   visitable?: string;
   referenciaCatastral?: string;
+  viviendaHabitual?: string;
+  cargas?: string;
+  // General
   anuncioBOE?: string;
   cuentaExpediente?: string;
+  // Autoridad gestora
   autoridad?: string;
+  autoridadCodigo?: string;
+  autoridadDireccion?: string;
+  autoridadTelefono?: string;
+  autoridadFax?: string;
+  autoridadEmail?: string;
+  // Relacionados (acreedor)
+  acreedor?: Acreedor;
+  // Documentos
+  documentos?: Documento[];
   rawData: Record<string, string>;
   scrapedAt: string;
 }
@@ -237,7 +266,7 @@ function extraerTotalResultados(html: string): number | null {
 }
 
 function mapearCampos(raw: Record<string, string>): Partial<Subasta> {
-  return {
+  const result: Partial<Subasta> = {
     identificador: raw["Identificador"],
     estado: raw["Estado"],
     tipoSubasta: raw["Tipo de subasta"],
@@ -251,7 +280,9 @@ function mapearCampos(raw: Record<string, string>): Partial<Subasta> {
     cantidadReclamada: raw["Cantidad reclamada"],
     pujActual: raw["Precio puja actual"],
     lotes: raw["Lotes"],
+    // Bien
     descripcion: raw["Descripción"],
+    tipoBienDetalle: raw["_tipoBienDetalle"],
     direccion: raw["Dirección"],
     codigoPostal: raw["Código Postal"],
     localidad: raw["Localidad"],
@@ -259,17 +290,81 @@ function mapearCampos(raw: Record<string, string>): Partial<Subasta> {
     situacionPosesoria: raw["Situación posesoria"],
     visitable: raw["Visitable"],
     referenciaCatastral: raw["Referencia catastral"],
+    viviendaHabitual: raw["Vivienda habitual"],
+    cargas: raw["Cargas"],
+    // General
     anuncioBOE: raw["Anuncio BOE"],
     cuentaExpediente: raw["Cuenta expediente"],
-    autoridad: raw["Autoridad gestora"],
+    // Autoridad gestora
+    autoridad: raw["_autoridadDescripcion"] || raw["Descripción"],
+    autoridadCodigo: raw["_autoridadCodigo"],
+    autoridadDireccion: raw["_autoridadDireccion"],
+    autoridadTelefono: raw["_autoridadTelefono"],
+    autoridadFax: raw["_autoridadFax"],
+    autoridadEmail: raw["_autoridadEmail"],
   };
+
+  // Acreedor (Relacionados tab)
+  if (raw["_acreedorNombre"]) {
+    result.acreedor = {
+      nombre: raw["_acreedorNombre"],
+      nif: raw["_acreedorNIF"],
+      direccion: raw["_acreedorDireccion"],
+      localidad: raw["_acreedorLocalidad"],
+      provincia: raw["_acreedorProvincia"],
+      pais: raw["_acreedorPais"],
+    };
+  }
+
+  return result;
+}
+
+function extraerDocumentos(html: string): Documento[] {
+  const $ = cheerio.load(html);
+  const docs: Documento[] = [];
+
+  // Look for document links in the "Información complementaria" section
+  $("a[href]").each((_, el) => {
+    const href = $(el).attr("href") || "";
+    const texto = limpiarTexto($(el).text());
+    // Document links typically point to verDocumento.php or contain "documento"
+    if (
+      (href.includes("verDocumento") || href.includes("documento")) &&
+      texto &&
+      texto !== "*"
+    ) {
+      let fullUrl = href;
+      if (!fullUrl.startsWith("http")) {
+        fullUrl = `${BASE_URL}/${fullUrl.replace(/^\.\//, "")}`;
+      }
+      docs.push({ titulo: texto, url: fullUrl });
+    }
+  });
+
+  return docs;
+}
+
+function extraerTipoBien(html: string): string | undefined {
+  const $ = cheerio.load(html);
+  // The bien type is in a heading like "Bien 1 - Inmueble (Vivienda)"
+  let tipoBien: string | undefined;
+  $("h4, h3, h2").each((_, el) => {
+    const text = $(el).text();
+    const match = text.match(/Bien\s+\d+\s*-\s*(.+)/);
+    if (match) {
+      tipoBien = match[1].trim();
+      return false;
+    }
+  });
+  return tipoBien;
 }
 
 async function obtenerDetalleSubasta(
   urlSubasta: string,
   delayMs: number = 800
-): Promise<Record<string, string>> {
+): Promise<{ datos: Record<string, string>; documentos: Documento[] }> {
   const datos: Record<string, string> = { url: urlSubasta };
+  let documentos: Documento[] = [];
 
   let urlBase = urlSubasta;
   let urlSufijo = "";
@@ -284,12 +379,13 @@ async function obtenerDetalleSubasta(
     [1, "general"],
     [2, "autoridad"],
     [3, "bienes"],
+    [4, "relacionados"],
     [5, "pujas"],
   ];
 
   let numLotes = 0;
 
-  for (const [numVista, nombre] of vistas) {
+  for (const [numVista] of vistas) {
     const urlVista = `${urlBase}&ver=${numVista}${urlSufijo}`;
 
     try {
@@ -299,6 +395,7 @@ async function obtenerDetalleSubasta(
       const tabla = extraerTabla(html);
 
       if (numVista === 1) {
+        // General info + extract documents
         const lotesStr = tabla["Lotes"] || "Sin lotes";
         if (lotesStr === "Sin lotes" || lotesStr === "0") {
           numLotes = 0;
@@ -307,13 +404,29 @@ async function obtenerDetalleSubasta(
           numLotes = m ? parseInt(m[0]) : 0;
         }
         Object.assign(datos, tabla);
+        documentos = extraerDocumentos(html);
+      } else if (numVista === 2) {
+        // Autoridad gestora - prefix keys to avoid collision with bien data
+        datos["_autoridadCodigo"] = tabla["Código"] || "";
+        datos["_autoridadDescripcion"] = tabla["Descripción"] || "";
+        datos["_autoridadDireccion"] = tabla["Dirección"] || "";
+        datos["_autoridadTelefono"] = tabla["Teléfono"] || "";
+        datos["_autoridadFax"] = tabla["Fax"] || "";
+        datos["_autoridadEmail"] = tabla["Correo electrónico"] || "";
       } else if (numVista === 3) {
+        // Bienes
+        const tipoBien = extraerTipoBien(html);
+        if (tipoBien) datos["_tipoBienDetalle"] = tipoBien;
+
         if (numLotes > 1) {
           for (let n = 1; n <= numLotes; n++) {
             const urlLote = `${urlVista}&idLote=${n}&numPagBus=`;
             try {
               const rLote = await fetchWithCookies(urlLote);
-              const tablaLote = extraerTabla(await rLote.text());
+              const htmlLote = await rLote.text();
+              const tablaLote = extraerTabla(htmlLote);
+              const tipoLote = extraerTipoBien(htmlLote);
+              if (tipoLote) datos[`Lote${n}_Tipo`] = tipoLote;
               for (const [k, v] of Object.entries(tablaLote)) {
                 datos[`Lote${n}_${k}`] = v;
               }
@@ -325,7 +438,16 @@ async function obtenerDetalleSubasta(
         } else {
           Object.assign(datos, tabla);
         }
+      } else if (numVista === 4) {
+        // Relacionados (acreedor)
+        datos["_acreedorNombre"] = tabla["Nombre"] || "";
+        datos["_acreedorNIF"] = tabla["NIF"] || "";
+        datos["_acreedorDireccion"] = tabla["Dirección"] || "";
+        datos["_acreedorLocalidad"] = tabla["Localidad"] || "";
+        datos["_acreedorProvincia"] = tabla["Provincia"] || "";
+        datos["_acreedorPais"] = tabla["País"] || "";
       } else if (numVista === 5) {
+        // Pujas
         const $ = cheerio.load(html);
         const bloque = $("#idBloqueDatos8");
         if (bloque.length) {
@@ -335,8 +457,6 @@ async function obtenerDetalleSubasta(
           }
         }
         Object.assign(datos, tabla);
-      } else {
-        Object.assign(datos, tabla);
       }
 
       await delay(delayMs * 0.5);
@@ -345,7 +465,7 @@ async function obtenerDetalleSubasta(
     }
   }
 
-  return datos;
+  return { datos, documentos };
 }
 
 export interface ScrapeOptions {
@@ -437,12 +557,13 @@ export async function scrapeSubastas(
       });
 
       try {
-        const rawData = await obtenerDetalleSubasta(info.url, delayMs);
+        const { datos: rawData, documentos } = await obtenerDetalleSubasta(info.url, delayMs);
         const campos = mapearCampos(rawData);
         todasSubastas.push({
           id: info.id,
           url: info.url,
           ...campos,
+          documentos: documentos.length > 0 ? documentos : undefined,
           rawData,
           scrapedAt: new Date().toISOString(),
         });
