@@ -40,9 +40,14 @@ export function useSubastas() {
   const addSubastas = useCallback(
     (nuevas: Subasta[]) => {
       setSubastas((prev) => {
-        const idsExistentes = new Set(prev.map((s) => s.id));
-        const nuevasUnicas = nuevas.filter((s) => !idsExistentes.has(s.id));
-        const todas = [...nuevasUnicas, ...prev];
+        // Merge: new data overwrites existing by id, preserves non-duplicates
+        const map = new Map(prev.map((s) => [s.id, s]));
+        for (const s of nuevas) {
+          map.set(s.id, s); // Update existing or add new
+        }
+        const todas = Array.from(map.values()).sort(
+          (a, b) => new Date(b.scrapedAt).getTime() - new Date(a.scrapedAt).getTime()
+        );
         saveToStorage(STORAGE_KEY, todas);
         return todas;
       });
