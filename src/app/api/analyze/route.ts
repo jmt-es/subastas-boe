@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analizarSubasta } from "@/lib/gemini";
+import { getAnalysisCollection } from "@/lib/mongodb";
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +15,14 @@ export async function POST(request: NextRequest) {
 
     const analysis = await analizarSubasta(subasta);
 
-    // Return analysis directly — client handles persistence
+    // Persist to MongoDB
+    const col = await getAnalysisCollection();
+    await col.updateOne(
+      { subastaId: analysis.subastaId },
+      { $set: analysis },
+      { upsert: true }
+    );
+
     return NextResponse.json(analysis);
   } catch (error) {
     console.error("Error en análisis:", error);

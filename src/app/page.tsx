@@ -157,7 +157,11 @@ export default function Dashboard() {
             >
               <div className="absolute top-0 right-0 w-20 h-20 bg-primary/5 rounded-bl-[40px] transition-colors group-hover:bg-primary/10" />
               <stat.icon className="h-4 w-4 text-muted-foreground mb-3" />
-              <p className="text-2xl font-bold tracking-tight">{stat.value}</p>
+              {loading ? (
+                <div className="h-8 w-20 bg-muted/50 rounded animate-pulse mt-1" />
+              ) : (
+                <p className="text-2xl font-bold tracking-tight">{stat.value}</p>
+              )}
               <p className="text-[10px] font-semibold tracking-widest text-muted-foreground mt-1">
                 {stat.label}
               </p>
@@ -213,14 +217,18 @@ export default function Dashboard() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="text-center py-20 text-muted-foreground"
-                  >
-                    <div className="animate-pulse">Cargando...</div>
-                  </TableCell>
-                </TableRow>
+                Array.from({ length: 8 }).map((_, i) => (
+                  <TableRow key={i} className="border-border/30">
+                    <TableCell><div className="h-4 w-28 bg-muted/40 rounded animate-pulse" /></TableCell>
+                    <TableCell><div className="h-5 w-16 bg-muted/40 rounded-full animate-pulse" /></TableCell>
+                    <TableCell><div className="h-4 w-40 bg-muted/30 rounded animate-pulse" /></TableCell>
+                    <TableCell><div className="h-4 w-24 bg-muted/30 rounded animate-pulse" /></TableCell>
+                    <TableCell className="text-right"><div className="h-4 w-20 bg-muted/40 rounded animate-pulse ml-auto" /></TableCell>
+                    <TableCell className="text-right"><div className="h-4 w-20 bg-muted/30 rounded animate-pulse ml-auto" /></TableCell>
+                    <TableCell className="text-right"><div className="h-4 w-16 bg-primary/10 rounded animate-pulse ml-auto" /></TableCell>
+                    <TableCell><div className="h-4 w-4 bg-muted/20 rounded animate-pulse" /></TableCell>
+                  </TableRow>
+                ))
               ) : filtradas.length === 0 ? (
                 <TableRow>
                   <TableCell

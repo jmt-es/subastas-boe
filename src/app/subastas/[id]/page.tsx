@@ -144,7 +144,7 @@ export default function SubastaDetalle({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { getAnalysis, saveAnalysis: saveAnalysisLocal } = useAnalysis();
+  const { getAnalysis } = useAnalysis();
   const [subasta, setSubasta] = useState<Subasta | null>(null);
   const [loadingSubastas, setLoadingSubastas] = useState(true);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
@@ -186,7 +186,6 @@ export default function SubastaDetalle({
       const data = await resp.json();
       if (resp.ok) {
         setAnalysis(data);
-        saveAnalysisLocal(data);
       } else {
         setAnalyzeError(data.error || "Error desconocido");
       }
