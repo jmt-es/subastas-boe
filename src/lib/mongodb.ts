@@ -41,4 +41,9 @@ export async function getAnalysisCollection() {
   return db.collection("analysis");
 }
 
+export async function getDocumentsCollection() {
+  const db = await getDb();
+  return db.collection("documents");
+}
+
 export default clientPromise;

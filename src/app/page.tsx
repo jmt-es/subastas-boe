@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,8 @@ import {
   Brain,
   FileText,
   Home,
+  Filter,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { ScrapeDialog } from "@/components/scrape-dialog";
@@ -38,8 +41,9 @@ const PAGE_SIZE = 25;
 
 function formatCurrency(value?: string): string {
   if (!value) return "—";
+  if (value.toLowerCase().includes("lote")) return "Ver lotes";
   const num = parseFloat(value.replace(/[^\d,.-]/g, "").replace(",", "."));
-  if (isNaN(num)) return value;
+  if (isNaN(num) || num === 0) return "—";
   return new Intl.NumberFormat("es-ES", {
     style: "currency",
     currency: "EUR",
@@ -58,10 +62,8 @@ function formatCompact(num: number): string {
 
 function parseDate(d?: string): Date | null {
   if (!d) return null;
-  // Handle "DD-MM-YYYY HH:MM:SS" format
   const m = d.match(/(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
   if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:${m[6]}`);
-  // ISO format
   const iso = new Date(d);
   return isNaN(iso.getTime()) ? null : iso;
 }
@@ -104,11 +106,64 @@ function DaysLeftBadge({ days }: { days: number }) {
 }
 
 export default function Dashboard() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <DashboardContent />
+    </Suspense>
+  );
+}
+
+function DashboardContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const { subastas, loading, addSubastas, clearSubastas } = useSubastas();
-  const [busqueda, setBusqueda] = useState("");
   const [showScrape, setShowScrape] = useState(false);
-  const [pagina, setPagina] = useState(1);
   const [analyses, setAnalyses] = useState<Record<string, AnalysisResult>>({});
+
+  // Read state from URL
+  const pagina = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+  const busqueda = searchParams.get("q") || "";
+  const provinciaFiltro = searchParams.get("provincia") || "";
+
+  // Helper to update URL params
+  const updateParams = useCallback(
+    (updates: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [key, val] of Object.entries(updates)) {
+        if (val === null || val === "") {
+          params.delete(key);
+        } else {
+          params.set(key, val);
+        }
+      }
+      const qs = params.toString();
+      router.push(qs ? `/?${qs}` : "/", { scroll: false });
+    },
+    [searchParams, router]
+  );
+
+  const setPagina = useCallback(
+    (p: number | ((prev: number) => number)) => {
+      const next = typeof p === "function" ? p(pagina) : p;
+      updateParams({ page: next <= 1 ? null : String(next) });
+    },
+    [pagina, updateParams]
+  );
+
+  const setBusqueda = useCallback(
+    (q: string) => {
+      updateParams({ q: q || null, page: null });
+    },
+    [updateParams]
+  );
+
+  const setProvincia = useCallback(
+    (prov: string) => {
+      updateParams({ provincia: prov || null, page: null });
+    },
+    [updateParams]
+  );
 
   // Load all analyses from MongoDB
   const fetchAnalyses = useCallback(async () => {
@@ -129,29 +184,46 @@ export default function Dashboard() {
     fetchAnalyses();
   }, [fetchAnalyses]);
 
-  const filtradas = useMemo(() => {
-    if (!busqueda.trim()) return subastas;
-    const q = busqueda.toLowerCase();
-    return subastas.filter(
-      (s) =>
-        s.descripcion?.toLowerCase().includes(q) ||
-        s.direccion?.toLowerCase().includes(q) ||
-        s.localidad?.toLowerCase().includes(q) ||
-        s.provincia?.toLowerCase().includes(q) ||
-        s.tipoBienDetalle?.toLowerCase().includes(q) ||
-        s.id.toLowerCase().includes(q)
-    );
-  }, [subastas, busqueda]);
+  // Get unique provinces from data
+  const provincias = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of subastas) {
+      if (s.provincia) set.add(s.provincia);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "es"));
+  }, [subastas]);
 
-  // Reset page when search changes
-  useEffect(() => {
-    setPagina(1);
-  }, [busqueda]);
+  const filtradas = useMemo(() => {
+    let result = subastas;
+
+    // Province filter
+    if (provinciaFiltro) {
+      result = result.filter((s) => s.provincia === provinciaFiltro);
+    }
+
+    // Text search
+    if (busqueda.trim()) {
+      const q = busqueda.toLowerCase();
+      result = result.filter(
+        (s) =>
+          s.descripcion?.toLowerCase().includes(q) ||
+          s.direccion?.toLowerCase().includes(q) ||
+          s.localidad?.toLowerCase().includes(q) ||
+          s.provincia?.toLowerCase().includes(q) ||
+          s.tipoBienDetalle?.toLowerCase().includes(q) ||
+          s.id.toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [subastas, busqueda, provinciaFiltro]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE));
+  // Clamp page if out of range
+  const paginaReal = Math.min(pagina, totalPaginas);
   const paginadas = filtradas.slice(
-    (pagina - 1) * PAGE_SIZE,
-    pagina * PAGE_SIZE
+    (paginaReal - 1) * PAGE_SIZE,
+    paginaReal * PAGE_SIZE
   );
 
   const stats = useMemo(() => {
@@ -160,10 +232,8 @@ export default function Dashboard() {
     let valorTotal = 0;
 
     for (const s of subastas) {
-      // Active = fecha conclusión in the future
       const end = parseDate(s.fechaConclusion);
       if (end && end.getTime() > now) activas++;
-
       const num = parseFloat(
         (s.valorSubasta || "0").replace(/[^\d,.-]/g, "").replace(",", ".")
       );
@@ -174,10 +244,14 @@ export default function Dashboard() {
       total: subastas.length,
       activas,
       valorTotal,
-      provincias: new Set(subastas.map((s) => s.provincia).filter(Boolean)).size,
+      provincias: new Set(subastas.map((s) => s.provincia).filter(Boolean))
+        .size,
       analizadas: Object.keys(analyses).length,
     };
   }, [subastas, analyses]);
+
+  // Count active filters
+  const activeFilters = (busqueda ? 1 : 0) + (provinciaFiltro ? 1 : 0);
 
   return (
     <main className="min-h-screen bg-background">
@@ -230,9 +304,21 @@ export default function Dashboard() {
           {[
             { label: "SUBASTAS", value: stats.total.toString(), icon: Gavel },
             { label: "ACTIVAS", value: stats.activas.toString(), icon: Clock },
-            { label: "VALOR TOTAL", value: formatCompact(stats.valorTotal), icon: TrendingUp },
-            { label: "PROVINCIAS", value: stats.provincias.toString(), icon: MapPin },
-            { label: "ANALIZADAS IA", value: stats.analizadas.toString(), icon: Brain },
+            {
+              label: "VALOR TOTAL",
+              value: formatCompact(stats.valorTotal),
+              icon: TrendingUp,
+            },
+            {
+              label: "PROVINCIAS",
+              value: stats.provincias.toString(),
+              icon: MapPin,
+            },
+            {
+              label: "ANALIZADAS IA",
+              value: stats.analizadas.toString(),
+              icon: Brain,
+            },
           ].map((stat) => (
             <div
               key={stat.label}
@@ -243,7 +329,9 @@ export default function Dashboard() {
               {loading ? (
                 <div className="h-8 w-20 bg-muted/50 rounded animate-pulse mt-1" />
               ) : (
-                <p className="text-2xl font-bold tracking-tight">{stat.value}</p>
+                <p className="text-2xl font-bold tracking-tight">
+                  {stat.value}
+                </p>
               )}
               <p className="text-[10px] font-semibold tracking-widest text-muted-foreground mt-1">
                 {stat.label}
@@ -252,21 +340,88 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por descripción, dirección, localidad, provincia, tipo..."
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            className="pl-11 h-12 bg-card/50 border-border/50 text-sm placeholder:text-muted-foreground/60"
-          />
-          {busqueda && (
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-              {filtradas.length} resultados
-            </span>
-          )}
+        {/* Search + Filters */}
+        <div className="flex gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por descripción, dirección, localidad, tipo..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              className="pl-11 h-11 bg-card/50 border-border/50 text-sm placeholder:text-muted-foreground/60"
+            />
+            {busqueda && (
+              <button
+                onClick={() => setBusqueda("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Province filter */}
+          <div className="relative">
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <select
+              value={provinciaFiltro}
+              onChange={(e) => setProvincia(e.target.value)}
+              className="h-11 pl-9 pr-8 rounded-md border border-border/50 bg-card/50 text-sm appearance-none cursor-pointer hover:border-primary/30 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">Todas las provincias</option>
+              {provincias.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            {provinciaFiltro && (
+              <button
+                onClick={() => setProvincia("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Active filters info */}
+        {activeFilters > 0 && !loading && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>
+              {filtradas.length} resultado{filtradas.length !== 1 ? "s" : ""}
+            </span>
+            {provinciaFiltro && (
+              <Badge
+                variant="secondary"
+                className="text-[9px] gap-1 cursor-pointer hover:bg-destructive/10"
+                onClick={() => setProvincia("")}
+              >
+                <MapPin className="h-2.5 w-2.5" />
+                {provinciaFiltro}
+                <X className="h-2 w-2" />
+              </Badge>
+            )}
+            {busqueda && (
+              <Badge
+                variant="secondary"
+                className="text-[9px] gap-1 cursor-pointer hover:bg-destructive/10"
+                onClick={() => setBusqueda("")}
+              >
+                <Search className="h-2.5 w-2.5" />
+                &quot;{busqueda}&quot;
+                <X className="h-2 w-2" />
+              </Badge>
+            )}
+            <button
+              onClick={() => updateParams({ q: null, provincia: null, page: null })}
+              className="text-[10px] text-primary hover:underline ml-1"
+            >
+              Limpiar filtros
+            </button>
+          </div>
+        )}
 
         {/* Table */}
         <div className="rounded-lg border border-border/50 overflow-hidden">
@@ -297,23 +452,40 @@ export default function Dashboard() {
                 <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">
                   Docs
                 </TableHead>
-                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase w-8">
-                </TableHead>
+                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase w-8"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 Array.from({ length: PAGE_SIZE }).map((_, i) => (
                   <TableRow key={i} className="border-border/30">
-                    <TableCell><div className="h-5 w-20 bg-muted/40 rounded-full animate-pulse" /></TableCell>
-                    <TableCell><div className="h-4 w-48 bg-muted/30 rounded animate-pulse" /></TableCell>
-                    <TableCell><div className="h-4 w-28 bg-muted/30 rounded animate-pulse" /></TableCell>
-                    <TableCell className="text-right"><div className="h-4 w-20 bg-muted/40 rounded animate-pulse ml-auto" /></TableCell>
-                    <TableCell className="text-right"><div className="h-4 w-20 bg-muted/30 rounded animate-pulse ml-auto" /></TableCell>
-                    <TableCell className="text-center"><div className="h-4 w-8 bg-muted/30 rounded animate-pulse mx-auto" /></TableCell>
-                    <TableCell className="text-center"><div className="h-4 w-12 bg-muted/20 rounded animate-pulse mx-auto" /></TableCell>
-                    <TableCell className="text-center"><div className="h-4 w-4 bg-muted/20 rounded animate-pulse mx-auto" /></TableCell>
-                    <TableCell><div className="h-4 w-4 bg-muted/20 rounded animate-pulse" /></TableCell>
+                    <TableCell>
+                      <div className="h-5 w-20 bg-muted/40 rounded-full animate-pulse" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-48 bg-muted/30 rounded animate-pulse" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-28 bg-muted/30 rounded animate-pulse" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="h-4 w-20 bg-muted/40 rounded animate-pulse ml-auto" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="h-4 w-20 bg-muted/30 rounded animate-pulse ml-auto" />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="h-4 w-8 bg-muted/30 rounded animate-pulse mx-auto" />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="h-4 w-12 bg-muted/20 rounded animate-pulse mx-auto" />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="h-4 w-4 bg-muted/20 rounded animate-pulse mx-auto" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-4 bg-muted/20 rounded animate-pulse" />
+                    </TableCell>
                   </TableRow>
                 ))
               ) : filtradas.length === 0 ? (
@@ -326,14 +498,31 @@ export default function Dashboard() {
                       <div>
                         <p className="font-medium">No hay subastas</p>
                         <p className="text-sm text-muted-foreground mt-1">
-                          Pulsa{" "}
-                          <button
-                            onClick={() => setShowScrape(true)}
-                            className="text-primary hover:underline font-semibold"
-                          >
-                            Scrapear BOE
-                          </button>{" "}
-                          para descargar datos
+                          {activeFilters > 0 ? (
+                            <button
+                              onClick={() =>
+                                updateParams({
+                                  q: null,
+                                  provincia: null,
+                                  page: null,
+                                })
+                              }
+                              className="text-primary hover:underline font-semibold"
+                            >
+                              Limpiar filtros
+                            </button>
+                          ) : (
+                            <>
+                              Pulsa{" "}
+                              <button
+                                onClick={() => setShowScrape(true)}
+                                className="text-primary hover:underline font-semibold"
+                              >
+                                Scrapear BOE
+                              </button>{" "}
+                              para descargar datos
+                            </>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -343,7 +532,9 @@ export default function Dashboard() {
                 paginadas.map((s) => {
                   const days = daysUntil(s.fechaConclusion);
                   const analysis = analyses[s.id];
-                  const isVivienda = s.tipoBienDetalle?.toLowerCase().includes("vivienda");
+                  const isVivienda = s.tipoBienDetalle
+                    ?.toLowerCase()
+                    .includes("vivienda");
                   return (
                     <TableRow
                       key={s.id}
@@ -355,11 +546,15 @@ export default function Dashboard() {
                             variant="secondary"
                             className="text-[9px] font-semibold tracking-wide w-fit"
                           >
-                            {isVivienda && <Home className="h-2.5 w-2.5 mr-1" />}
+                            {isVivienda && (
+                              <Home className="h-2.5 w-2.5 mr-1" />
+                            )}
                             {s.tipoBienDetalle || "—"}
                           </Badge>
                           <span className="text-[9px] text-muted-foreground/60 font-mono">
-                            {s.id.length > 20 ? s.id.substring(0, 20) + "…" : s.id}
+                            {s.id.length > 20
+                              ? s.id.substring(0, 20) + "…"
+                              : s.id}
                           </span>
                         </div>
                       </TableCell>
@@ -375,9 +570,7 @@ export default function Dashboard() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="text-xs">
-                            {s.localidad || "—"}
-                          </span>
+                          <span className="text-xs">{s.localidad || "—"}</span>
                           <span className="text-[10px] text-muted-foreground">
                             {s.provincia || ""}
                           </span>
@@ -390,15 +583,23 @@ export default function Dashboard() {
                         {formatCurrency(s.tasacion)}
                       </TableCell>
                       <TableCell className="text-center">
-                        {days !== null ? <DaysLeftBadge days={days} /> : "—"}
+                        {days !== null ? (
+                          <DaysLeftBadge days={days} />
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
                       <TableCell className="text-center">
                         {analysis ? (
-                          <Link href={`/subastas/${encodeURIComponent(s.id)}`}>
+                          <Link
+                            href={`/subastas/${encodeURIComponent(s.id)}`}
+                          >
                             <ScorePill score={analysis.oportunidad} />
                           </Link>
                         ) : (
-                          <span className="text-[10px] text-muted-foreground/30">—</span>
+                          <span className="text-[10px] text-muted-foreground/30">
+                            —
+                          </span>
                         )}
                       </TableCell>
                       <TableCell className="text-center">
@@ -408,7 +609,9 @@ export default function Dashboard() {
                             {s.documentos.length}
                           </span>
                         ) : (
-                          <span className="text-[10px] text-muted-foreground/30">—</span>
+                          <span className="text-[10px] text-muted-foreground/30">
+                            —
+                          </span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -433,15 +636,19 @@ export default function Dashboard() {
         {!loading && filtradas.length > PAGE_SIZE && (
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
-              {(pagina - 1) * PAGE_SIZE + 1}–{Math.min(pagina * PAGE_SIZE, filtradas.length)} de{" "}
-              <span className="font-semibold text-foreground">{filtradas.length}</span> subastas
+              {(paginaReal - 1) * PAGE_SIZE + 1}–
+              {Math.min(paginaReal * PAGE_SIZE, filtradas.length)} de{" "}
+              <span className="font-semibold text-foreground">
+                {filtradas.length}
+              </span>{" "}
+              subastas
             </p>
             <div className="flex items-center gap-1">
               <Button
                 variant="outline"
                 size="icon"
                 className="h-8 w-8"
-                disabled={pagina <= 1}
+                disabled={paginaReal <= 1}
                 onClick={() => setPagina(1)}
               >
                 <ChevronsLeft className="h-3.5 w-3.5" />
@@ -450,7 +657,7 @@ export default function Dashboard() {
                 variant="outline"
                 size="icon"
                 className="h-8 w-8"
-                disabled={pagina <= 1}
+                disabled={paginaReal <= 1}
                 onClick={() => setPagina((p) => Math.max(1, p - 1))}
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
@@ -461,17 +668,17 @@ export default function Dashboard() {
                 let p: number;
                 if (totalPaginas <= 5) {
                   p = i + 1;
-                } else if (pagina <= 3) {
+                } else if (paginaReal <= 3) {
                   p = i + 1;
-                } else if (pagina >= totalPaginas - 2) {
+                } else if (paginaReal >= totalPaginas - 2) {
                   p = totalPaginas - 4 + i;
                 } else {
-                  p = pagina - 2 + i;
+                  p = paginaReal - 2 + i;
                 }
                 return (
                   <Button
                     key={p}
-                    variant={p === pagina ? "default" : "outline"}
+                    variant={p === paginaReal ? "default" : "outline"}
                     size="icon"
                     className="h-8 w-8 text-xs"
                     onClick={() => setPagina(p)}
@@ -485,8 +692,10 @@ export default function Dashboard() {
                 variant="outline"
                 size="icon"
                 className="h-8 w-8"
-                disabled={pagina >= totalPaginas}
-                onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+                disabled={paginaReal >= totalPaginas}
+                onClick={() =>
+                  setPagina((p) => Math.min(totalPaginas, p + 1))
+                }
               >
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>
@@ -494,7 +703,7 @@ export default function Dashboard() {
                 variant="outline"
                 size="icon"
                 className="h-8 w-8"
-                disabled={pagina >= totalPaginas}
+                disabled={paginaReal >= totalPaginas}
                 onClick={() => setPagina(totalPaginas)}
               >
                 <ChevronsRight className="h-3.5 w-3.5" />

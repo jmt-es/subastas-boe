@@ -4,7 +4,12 @@ import { useState, useEffect, use } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import {
   ArrowLeft,
   ExternalLink,
@@ -20,6 +25,14 @@ import {
   Building2,
   Phone,
   Mail,
+  DollarSign,
+  Scale,
+  Home,
+  TrendingUp,
+  Target,
+  BookOpen,
+  Shield,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { useAnalysis } from "@/lib/use-subastas";
@@ -66,14 +79,12 @@ function RecomendacionBadge({
     comprar: {
       icon: CheckCircle,
       label: "COMPRAR",
-      className:
-        "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+      className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
     },
     observar: {
       icon: Eye,
       label: "OBSERVAR",
-      className:
-        "bg-amber-500/10 text-amber-400 border-amber-500/30",
+      className: "bg-amber-500/10 text-amber-400 border-amber-500/30",
     },
     descartar: {
       icon: XCircle,
@@ -138,6 +149,335 @@ function MoneyCard({
   );
 }
 
+function BulletSection({
+  title,
+  icon: Icon,
+  items,
+  color = "primary",
+}: {
+  title: string;
+  icon: React.ElementType;
+  items: string[];
+  color?: "primary" | "destructive" | "emerald" | "amber";
+}) {
+  if (!items || items.length === 0) return null;
+  const colors = {
+    primary: {
+      border: "border-border/50",
+      bg: "bg-card/50",
+      icon: "text-primary",
+      bullet: "text-primary",
+      title: "text-muted-foreground",
+    },
+    destructive: {
+      border: "border-destructive/20",
+      bg: "bg-destructive/5",
+      icon: "text-destructive",
+      bullet: "text-destructive",
+      title: "text-destructive",
+    },
+    emerald: {
+      border: "border-emerald-500/20",
+      bg: "bg-emerald-500/5",
+      icon: "text-emerald-400",
+      bullet: "text-emerald-400",
+      title: "text-emerald-400",
+    },
+    amber: {
+      border: "border-amber-500/20",
+      bg: "bg-amber-500/5",
+      icon: "text-amber-400",
+      bullet: "text-amber-400",
+      title: "text-amber-400",
+    },
+  };
+  const c = colors[color];
+  return (
+    <div className={`rounded-lg border ${c.border} ${c.bg} p-6`}>
+      <h3
+        className={`text-[10px] font-bold tracking-widest uppercase mb-4 flex items-center gap-2 ${c.title}`}
+      >
+        <Icon className="h-3.5 w-3.5" />
+        {title}
+      </h3>
+      <ul className="space-y-2.5">
+        {items.map((item, i) => (
+          <li key={i} className="flex items-start gap-2.5 text-sm leading-relaxed">
+            <span className={`mt-1.5 font-bold text-[8px] ${c.bullet}`}>●</span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function AnalysisTab({
+  analysis,
+  analyzing,
+  analyzeError,
+}: {
+  analysis: AnalysisResult | null;
+  analyzing: boolean;
+  analyzeError: string | null;
+}) {
+  if (analyzing) {
+    return (
+      <div className="rounded-lg border border-border/50 bg-card/50 p-16 text-center">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+        <p className="text-sm text-muted-foreground">
+          Analizando con Gemini AI...
+        </p>
+        <p className="text-[10px] text-muted-foreground/50 mt-2">
+          Esto puede tardar 10-20 segundos
+        </p>
+      </div>
+    );
+  }
+
+  if (analyzeError) {
+    return (
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6">
+        <div className="flex items-center gap-2 text-destructive">
+          <AlertTriangle className="h-5 w-5" />
+          <p className="text-sm">{analyzeError}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!analysis) return null;
+
+  const eco = analysis.economico;
+
+  return (
+    <div className="space-y-5">
+      {/* Score + Recommendation */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-lg border border-border/50 bg-card/50 p-6">
+          <h3 className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-4">
+            Oportunidad
+          </h3>
+          <ScoreBar score={analysis.oportunidad} />
+        </div>
+        <div className="rounded-lg border border-border/50 bg-card/50 p-6">
+          <h3 className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-4">
+            Recomendación
+          </h3>
+          <RecomendacionBadge rec={analysis.recomendacion} />
+        </div>
+      </div>
+
+      {/* Resumen */}
+      <div className="rounded-lg border border-primary/20 bg-primary/5 p-6">
+        <h3 className="text-[10px] font-bold tracking-widest text-primary uppercase mb-3 flex items-center gap-2">
+          <Brain className="h-3.5 w-3.5" />
+          Resumen
+        </h3>
+        <p className="text-sm leading-relaxed">{analysis.resumen}</p>
+      </div>
+
+      {/* Desglose Económico */}
+      {eco && (
+        <div className="rounded-lg border border-border/50 bg-card/50 p-6">
+          <h3 className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-5 flex items-center gap-2">
+            <DollarSign className="h-3.5 w-3.5 text-primary" />
+            Desglose Económico
+          </h3>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+            {[
+              {
+                label: "Valor mercado estimado",
+                value: eco.valorMercadoEstimado,
+                highlight: true,
+              },
+              { label: "Descuento vs mercado", value: eco.descuentoEstimado },
+              { label: "Depósito necesario", value: eco.depositoNecesario },
+              {
+                label: "Costes totales estimados",
+                value: eco.costesTotalesEstimados,
+                highlight: true,
+              },
+              {
+                label: "Rentabilidad estimada",
+                value: eco.rentabilidadEstimada,
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className={`rounded-md border p-3.5 ${
+                  item.highlight
+                    ? "border-primary/30 bg-primary/5"
+                    : "border-border/30 bg-background/50"
+                }`}
+              >
+                <p className="text-[9px] font-bold tracking-widest text-muted-foreground uppercase mb-1.5">
+                  {item.label}
+                </p>
+                <p
+                  className={`text-sm font-bold font-mono ${item.highlight ? "text-primary" : ""}`}
+                >
+                  {item.value || "—"}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {eco.items && eco.items.length > 0 && (
+            <>
+              <Separator className="mb-4 bg-border/30" />
+              <h4 className="text-[9px] font-bold tracking-widest text-muted-foreground uppercase mb-3">
+                Desglose detallado
+              </h4>
+              <ul className="space-y-2">
+                {eco.items.map((item, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-2.5 text-sm leading-relaxed"
+                  >
+                    <span className="text-primary mt-1.5 font-bold text-[8px]">
+                      ●
+                    </span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Cargas */}
+      <BulletSection
+        title="Cargas del inmueble"
+        icon={Scale}
+        items={analysis.cargas}
+        color="amber"
+      />
+
+      {/* Situación Jurídica */}
+      <BulletSection
+        title="Situación Jurídica"
+        icon={Shield}
+        items={analysis.situacionJuridica}
+      />
+
+      {/* Posesión */}
+      <BulletSection
+        title="Posesión y Ocupación"
+        icon={Home}
+        items={analysis.posesion}
+      />
+
+      {/* Ubicación */}
+      <BulletSection
+        title="Análisis de Ubicación"
+        icon={MapPin}
+        items={analysis.ubicacion}
+      />
+
+      {/* Oportunidades */}
+      <BulletSection
+        title="Oportunidades"
+        icon={Sparkles}
+        items={analysis.oportunidades}
+        color="emerald"
+      />
+
+      {/* Riesgos */}
+      <BulletSection
+        title="Riesgos"
+        icon={AlertTriangle}
+        items={analysis.riesgos}
+        color="destructive"
+      />
+
+      {/* Estrategia de Puja */}
+      <BulletSection
+        title="Estrategia de Puja"
+        icon={Target}
+        items={analysis.estrategiaPuja}
+      />
+
+      {/* Glosario */}
+      {analysis.glosario && analysis.glosario.length > 0 && (
+        <div className="rounded-lg border border-border/50 bg-card/50 p-6">
+          <h3 className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-4 flex items-center gap-2">
+            <BookOpen className="h-3.5 w-3.5 text-primary" />
+            Glosario de Términos
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {analysis.glosario.map((g, i) => (
+              <div
+                key={i}
+                className="rounded-md border border-border/30 bg-background/50 p-3.5"
+              >
+                <p className="text-xs font-bold text-primary mb-1">
+                  {g.termino}
+                </p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  {g.explicacion}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Cost & metadata */}
+      <div className="rounded-lg border border-border/30 bg-card/30 p-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-4 text-[10px] text-muted-foreground/60">
+          <span>
+            Analizado{" "}
+            {new Date(analysis.analyzedAt).toLocaleString("es-ES")}
+          </span>
+          {analysis.usage && (
+            <>
+              <span className="text-border/50">|</span>
+              <span className="font-mono">{analysis.usage.model}</span>
+              {analysis.usage.docsAttached != null && analysis.usage.docsAttached > 0 && (
+                <>
+                  <span className="text-border/50">|</span>
+                  <span className="text-emerald-400 font-semibold">
+                    {analysis.usage.docsAttached} PDF{analysis.usage.docsAttached > 1 ? "s" : ""} adjuntos
+                  </span>
+                </>
+              )}
+            </>
+          )}
+        </div>
+        {analysis.usage && (
+          <div className="flex items-center gap-3 text-[10px]">
+            <span className="text-muted-foreground/60">
+              <span className="font-mono">
+                {analysis.usage.inputTokens.toLocaleString("es-ES")}
+              </span>{" "}
+              in
+            </span>
+            <span className="text-muted-foreground/60">
+              <span className="font-mono">
+                {analysis.usage.outputTokens.toLocaleString("es-ES")}
+              </span>{" "}
+              out
+            </span>
+            <span className="text-muted-foreground/60">
+              <span className="font-mono">
+                {analysis.usage.totalTokens.toLocaleString("es-ES")}
+              </span>{" "}
+              total
+            </span>
+            <span className="text-border/50">|</span>
+            <span className="font-mono font-bold text-primary">
+              ${analysis.usage.costUsd.toFixed(4)}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function SubastaDetalle({
   params,
 }: {
@@ -155,13 +495,13 @@ export default function SubastaDetalle({
     const decodedId = decodeURIComponent(id);
     async function load() {
       try {
-        // Fetch subasta directly from MongoDB
-        const resp = await fetch(`/api/subastas/${encodeURIComponent(decodedId)}`);
+        const resp = await fetch(
+          `/api/subastas/${encodeURIComponent(decodedId)}`
+        );
         if (resp.ok) {
           const data = await resp.json();
           setSubasta(data);
         }
-        // Fetch cached analysis
         const cached = await getAnalysis(decodedId);
         if (cached) setAnalysis(cached);
       } catch (e) {
@@ -364,13 +704,28 @@ export default function SubastaDetalle({
               <InfoRow label="CP" value={subasta.codigoPostal} />
               <InfoRow label="Localidad" value={subasta.localidad} />
               <InfoRow label="Provincia" value={subasta.provincia} />
-              <InfoRow label="Vivienda habitual" value={subasta.viviendaHabitual} />
+              <InfoRow
+                label="Vivienda habitual"
+                value={subasta.viviendaHabitual}
+              />
               <InfoRow label="Posesión" value={subasta.situacionPosesoria} />
               <InfoRow label="Visitable" value={subasta.visitable} />
-              <InfoRow label="Ref. Catastral" value={subasta.referenciaCatastral} />
-              <InfoRow label="Inscripción registral" value={subasta.inscripcionRegistral} />
-              <InfoRow label="CSV Certificación" value={subasta.csvCertificacion} />
-              <InfoRow label="Info registral electrónica" value={subasta.infoRegistralElectronica} />
+              <InfoRow
+                label="Ref. Catastral"
+                value={subasta.referenciaCatastral}
+              />
+              <InfoRow
+                label="Inscripción registral"
+                value={subasta.inscripcionRegistral}
+              />
+              <InfoRow
+                label="CSV Certificación"
+                value={subasta.csvCertificacion}
+              />
+              <InfoRow
+                label="Info registral electrónica"
+                value={subasta.infoRegistralElectronica}
+              />
               <InfoRow label="Info adicional" value={subasta.infoAdicional} />
               <InfoRow label="Cargas" value={subasta.cargas} />
             </div>
@@ -378,7 +733,6 @@ export default function SubastaDetalle({
 
           <TabsContent value="partes" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Autoridad gestora */}
               <div className="rounded-lg border border-border/50 bg-card/50 p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <Building2 className="h-4 w-4 text-primary" />
@@ -394,7 +748,9 @@ export default function SubastaDetalle({
                     <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase flex items-center gap-1">
                       <Phone className="h-3 w-3" /> Teléfono
                     </span>
-                    <span className="font-medium text-sm">{subasta.autoridadTelefono}</span>
+                    <span className="font-medium text-sm">
+                      {subasta.autoridadTelefono}
+                    </span>
                   </div>
                 )}
                 {subasta.autoridadEmail && (
@@ -402,13 +758,14 @@ export default function SubastaDetalle({
                     <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase flex items-center gap-1">
                       <Mail className="h-3 w-3" /> Email
                     </span>
-                    <span className="font-medium text-sm">{subasta.autoridadEmail}</span>
+                    <span className="font-medium text-sm">
+                      {subasta.autoridadEmail}
+                    </span>
                   </div>
                 )}
                 <InfoRow label="Fax" value={subasta.autoridadFax} />
               </div>
 
-              {/* Acreedor */}
               {subasta.acreedor && (
                 <div className="rounded-lg border border-border/50 bg-card/50 p-5">
                   <div className="flex items-center gap-2 mb-4">
@@ -419,9 +776,18 @@ export default function SubastaDetalle({
                   </div>
                   <InfoRow label="Nombre" value={subasta.acreedor.nombre} />
                   <InfoRow label="NIF" value={subasta.acreedor.nif} />
-                  <InfoRow label="Dirección" value={subasta.acreedor.direccion} />
-                  <InfoRow label="Localidad" value={subasta.acreedor.localidad} />
-                  <InfoRow label="Provincia" value={subasta.acreedor.provincia} />
+                  <InfoRow
+                    label="Dirección"
+                    value={subasta.acreedor.direccion}
+                  />
+                  <InfoRow
+                    label="Localidad"
+                    value={subasta.acreedor.localidad}
+                  />
+                  <InfoRow
+                    label="Provincia"
+                    value={subasta.acreedor.provincia}
+                  />
                   <InfoRow label="País" value={subasta.acreedor.pais} />
                 </div>
               )}
@@ -465,83 +831,12 @@ export default function SubastaDetalle({
           </TabsContent>
 
           {(analysis || analyzing) && (
-            <TabsContent value="analysis" className="space-y-6">
-              {analyzing ? (
-                <div className="rounded-lg border border-border/50 bg-card/50 p-16 text-center">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-                  <p className="text-sm text-muted-foreground">
-                    Analizando con Gemini AI...
-                  </p>
-                </div>
-              ) : analyzeError ? (
-                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6">
-                  <div className="flex items-center gap-2 text-destructive">
-                    <AlertTriangle className="h-5 w-5" />
-                    <p className="text-sm">{analyzeError}</p>
-                  </div>
-                </div>
-              ) : analysis ? (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="rounded-lg border border-border/50 bg-card/50 p-6">
-                      <h3 className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-4">
-                        Oportunidad
-                      </h3>
-                      <ScoreBar score={analysis.oportunidad} />
-                    </div>
-                    <div className="rounded-lg border border-border/50 bg-card/50 p-6">
-                      <h3 className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-4">
-                        Recomendación
-                      </h3>
-                      <RecomendacionBadge rec={analysis.recomendacion} />
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg border border-border/50 bg-card/50 p-6">
-                    <h3 className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-3">
-                      Resumen
-                    </h3>
-                    <p className="text-sm leading-relaxed">
-                      {analysis.resumen}
-                    </p>
-                  </div>
-
-                  <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-6">
-                    <h3 className="text-[10px] font-bold tracking-widest text-destructive uppercase mb-3 flex items-center gap-2">
-                      <AlertTriangle className="h-3.5 w-3.5" />
-                      Riesgos
-                    </h3>
-                    <ul className="space-y-2">
-                      {analysis.riesgos.map((r, i) => (
-                        <li
-                          key={i}
-                          className="flex items-start gap-2 text-sm"
-                        >
-                          <span className="text-destructive mt-0.5 font-bold">
-                            •
-                          </span>
-                          {r}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="rounded-lg border border-border/50 bg-card/50 p-6">
-                    <h3 className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-3 flex items-center gap-2">
-                      <Brain className="h-3.5 w-3.5 text-primary" />
-                      Análisis Detallado
-                    </h3>
-                    <div className="text-sm leading-relaxed whitespace-pre-line">
-                      {analysis.detalles}
-                    </div>
-                  </div>
-
-                  <p className="text-[10px] text-muted-foreground/50 text-right tracking-wider">
-                    Analizado{" "}
-                    {new Date(analysis.analyzedAt).toLocaleString("es-ES")}
-                  </p>
-                </>
-              ) : null}
+            <TabsContent value="analysis">
+              <AnalysisTab
+                analysis={analysis}
+                analyzing={analyzing}
+                analyzeError={analyzeError}
+              />
             </TabsContent>
           )}
         </Tabs>
