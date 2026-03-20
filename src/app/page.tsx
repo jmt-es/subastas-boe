@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,10 +21,20 @@ import {
   MapPin,
   Trash2,
   ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Brain,
+  FileText,
+  Home,
 } from "lucide-react";
 import Link from "next/link";
 import { ScrapeDialog } from "@/components/scrape-dialog";
 import { useSubastas } from "@/lib/use-subastas";
+import type { AnalysisResult } from "@/lib/storage";
+
+const PAGE_SIZE = 25;
 
 function formatCurrency(value?: string): string {
   if (!value) return "—";
@@ -33,6 +43,7 @@ function formatCurrency(value?: string): string {
   return new Intl.NumberFormat("es-ES", {
     style: "currency",
     currency: "EUR",
+    maximumFractionDigits: 0,
   }).format(num);
 }
 
@@ -45,10 +56,78 @@ function formatCompact(num: number): string {
   }).format(num);
 }
 
+function parseDate(d?: string): Date | null {
+  if (!d) return null;
+  // Handle "DD-MM-YYYY HH:MM:SS" format
+  const m = d.match(/(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
+  if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:${m[6]}`);
+  // ISO format
+  const iso = new Date(d);
+  return isNaN(iso.getTime()) ? null : iso;
+}
+
+function daysUntil(d?: string): number | null {
+  const date = parseDate(d);
+  if (!date) return null;
+  return Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+}
+
+function ScorePill({ score }: { score: number }) {
+  const bg =
+    score >= 7
+      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+      : score >= 4
+        ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+        : "bg-red-500/15 text-red-400 border-red-500/30";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold tabular-nums ${bg}`}
+    >
+      <Brain className="h-2.5 w-2.5" />
+      {score}/10
+    </span>
+  );
+}
+
+function DaysLeftBadge({ days }: { days: number }) {
+  const color =
+    days <= 3
+      ? "text-red-400"
+      : days <= 7
+        ? "text-amber-400"
+        : "text-muted-foreground";
+  return (
+    <span className={`text-[10px] font-semibold tabular-nums ${color}`}>
+      {days <= 0 ? "Finalizada" : `${days}d`}
+    </span>
+  );
+}
+
 export default function Dashboard() {
   const { subastas, loading, addSubastas, clearSubastas } = useSubastas();
   const [busqueda, setBusqueda] = useState("");
   const [showScrape, setShowScrape] = useState(false);
+  const [pagina, setPagina] = useState(1);
+  const [analyses, setAnalyses] = useState<Record<string, AnalysisResult>>({});
+
+  // Load all analyses from MongoDB
+  const fetchAnalyses = useCallback(async () => {
+    try {
+      const resp = await fetch("/api/analysis?all=1");
+      const data = await resp.json();
+      if (Array.isArray(data)) {
+        const map: Record<string, AnalysisResult> = {};
+        for (const a of data) map[a.subastaId] = a;
+        setAnalyses(map);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAnalyses();
+  }, [fetchAnalyses]);
 
   const filtradas = useMemo(() => {
     if (!busqueda.trim()) return subastas;
@@ -59,27 +138,46 @@ export default function Dashboard() {
         s.direccion?.toLowerCase().includes(q) ||
         s.localidad?.toLowerCase().includes(q) ||
         s.provincia?.toLowerCase().includes(q) ||
+        s.tipoBienDetalle?.toLowerCase().includes(q) ||
         s.id.toLowerCase().includes(q)
     );
   }, [subastas, busqueda]);
 
-  const stats = useMemo(
-    () => ({
-      total: subastas.length,
-      activas: subastas.filter((s) =>
-        s.estado?.toLowerCase().includes("celebr")
-      ).length,
-      valorTotal: subastas.reduce((acc, s) => {
-        const num = parseFloat(
-          (s.valorSubasta || "0").replace(/[^\d,.-]/g, "").replace(",", ".")
-        );
-        return acc + (isNaN(num) ? 0 : num);
-      }, 0),
-      provincias: new Set(subastas.map((s) => s.provincia).filter(Boolean))
-        .size,
-    }),
-    [subastas]
+  // Reset page when search changes
+  useEffect(() => {
+    setPagina(1);
+  }, [busqueda]);
+
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE));
+  const paginadas = filtradas.slice(
+    (pagina - 1) * PAGE_SIZE,
+    pagina * PAGE_SIZE
   );
+
+  const stats = useMemo(() => {
+    const now = Date.now();
+    let activas = 0;
+    let valorTotal = 0;
+
+    for (const s of subastas) {
+      // Active = fecha conclusión in the future
+      const end = parseDate(s.fechaConclusion);
+      if (end && end.getTime() > now) activas++;
+
+      const num = parseFloat(
+        (s.valorSubasta || "0").replace(/[^\d,.-]/g, "").replace(",", ".")
+      );
+      if (!isNaN(num)) valorTotal += num;
+    }
+
+    return {
+      total: subastas.length,
+      activas,
+      valorTotal,
+      provincias: new Set(subastas.map((s) => s.provincia).filter(Boolean)).size,
+      analizadas: Object.keys(analyses).length,
+    };
+  }, [subastas, analyses]);
 
   return (
     <main className="min-h-screen bg-background">
@@ -126,30 +224,15 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <div className="max-w-[1400px] mx-auto px-6 py-8 space-y-8">
+      <div className="max-w-[1400px] mx-auto px-6 py-8 space-y-6">
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {[
-            {
-              label: "SUBASTAS",
-              value: stats.total.toString(),
-              icon: Gavel,
-            },
-            {
-              label: "ACTIVAS",
-              value: stats.activas.toString(),
-              icon: Clock,
-            },
-            {
-              label: "VALOR TOTAL",
-              value: formatCompact(stats.valorTotal),
-              icon: TrendingUp,
-            },
-            {
-              label: "PROVINCIAS",
-              value: stats.provincias.toString(),
-              icon: MapPin,
-            },
+            { label: "SUBASTAS", value: stats.total.toString(), icon: Gavel },
+            { label: "ACTIVAS", value: stats.activas.toString(), icon: Clock },
+            { label: "VALOR TOTAL", value: formatCompact(stats.valorTotal), icon: TrendingUp },
+            { label: "PROVINCIAS", value: stats.provincias.toString(), icon: MapPin },
+            { label: "ANALIZADAS IA", value: stats.analizadas.toString(), icon: Brain },
           ].map((stat) => (
             <div
               key={stat.label}
@@ -173,7 +256,7 @@ export default function Dashboard() {
         <div className="relative">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por descripción, dirección, localidad, provincia..."
+            placeholder="Buscar por descripción, dirección, localidad, provincia, tipo..."
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             className="pl-11 h-12 bg-card/50 border-border/50 text-sm placeholder:text-muted-foreground/60"
@@ -191,10 +274,7 @@ export default function Dashboard() {
             <TableHeader>
               <TableRow className="border-border/50 bg-card/30">
                 <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                  ID
-                </TableHead>
-                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                  Estado
+                  Tipo
                 </TableHead>
                 <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
                   Descripción
@@ -208,8 +288,14 @@ export default function Dashboard() {
                 <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">
                   Tasación
                 </TableHead>
-                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">
-                  Puja
+                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">
+                  Cierre
+                </TableHead>
+                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">
+                  IA
+                </TableHead>
+                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">
+                  Docs
                 </TableHead>
                 <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase w-8">
                 </TableHead>
@@ -217,24 +303,22 @@ export default function Dashboard() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                Array.from({ length: 8 }).map((_, i) => (
+                Array.from({ length: PAGE_SIZE }).map((_, i) => (
                   <TableRow key={i} className="border-border/30">
-                    <TableCell><div className="h-4 w-28 bg-muted/40 rounded animate-pulse" /></TableCell>
-                    <TableCell><div className="h-5 w-16 bg-muted/40 rounded-full animate-pulse" /></TableCell>
-                    <TableCell><div className="h-4 w-40 bg-muted/30 rounded animate-pulse" /></TableCell>
-                    <TableCell><div className="h-4 w-24 bg-muted/30 rounded animate-pulse" /></TableCell>
+                    <TableCell><div className="h-5 w-20 bg-muted/40 rounded-full animate-pulse" /></TableCell>
+                    <TableCell><div className="h-4 w-48 bg-muted/30 rounded animate-pulse" /></TableCell>
+                    <TableCell><div className="h-4 w-28 bg-muted/30 rounded animate-pulse" /></TableCell>
                     <TableCell className="text-right"><div className="h-4 w-20 bg-muted/40 rounded animate-pulse ml-auto" /></TableCell>
                     <TableCell className="text-right"><div className="h-4 w-20 bg-muted/30 rounded animate-pulse ml-auto" /></TableCell>
-                    <TableCell className="text-right"><div className="h-4 w-16 bg-primary/10 rounded animate-pulse ml-auto" /></TableCell>
+                    <TableCell className="text-center"><div className="h-4 w-8 bg-muted/30 rounded animate-pulse mx-auto" /></TableCell>
+                    <TableCell className="text-center"><div className="h-4 w-12 bg-muted/20 rounded animate-pulse mx-auto" /></TableCell>
+                    <TableCell className="text-center"><div className="h-4 w-4 bg-muted/20 rounded animate-pulse mx-auto" /></TableCell>
                     <TableCell><div className="h-4 w-4 bg-muted/20 rounded animate-pulse" /></TableCell>
                   </TableRow>
                 ))
               ) : filtradas.length === 0 ? (
                 <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="text-center py-20"
-                  >
+                  <TableCell colSpan={9} className="text-center py-20">
                     <div className="flex flex-col items-center gap-4">
                       <div className="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center">
                         <Gavel className="h-7 w-7 text-primary/40" />
@@ -256,68 +340,168 @@ export default function Dashboard() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filtradas.map((s) => (
-                  <TableRow
-                    key={s.id}
-                    className="border-border/30 hover:bg-primary/[0.03] transition-colors group"
-                  >
-                    <TableCell>
-                      <Link
-                        href={`/subastas/${encodeURIComponent(s.id)}`}
-                        className="text-primary hover:underline font-mono text-xs font-medium"
-                      >
-                        {s.id.length > 18
-                          ? s.id.substring(0, 18) + "…"
-                          : s.id}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          s.estado?.toLowerCase().includes("celebr")
-                            ? "default"
-                            : "secondary"
-                        }
-                        className="text-[10px] font-semibold tracking-wide"
-                      >
-                        {s.estado || "—"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="max-w-[220px]">
-                      <p className="truncate text-sm">
-                        {s.descripcion || "Sin descripción"}
-                      </p>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {[s.localidad, s.provincia]
-                        .filter(Boolean)
-                        .join(", ") || "—"}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-xs tabular-nums">
-                      {formatCurrency(s.valorSubasta)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
-                      {formatCurrency(s.tasacion)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-xs tabular-nums font-semibold text-primary">
-                      {formatCurrency(s.pujActual)}
-                    </TableCell>
-                    <TableCell>
-                      <a
-                        href={s.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
-                      </a>
-                    </TableCell>
-                  </TableRow>
-                ))
+                paginadas.map((s) => {
+                  const days = daysUntil(s.fechaConclusion);
+                  const analysis = analyses[s.id];
+                  const isVivienda = s.tipoBienDetalle?.toLowerCase().includes("vivienda");
+                  return (
+                    <TableRow
+                      key={s.id}
+                      className="border-border/30 hover:bg-primary/[0.03] transition-colors group"
+                    >
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                          <Badge
+                            variant="secondary"
+                            className="text-[9px] font-semibold tracking-wide w-fit"
+                          >
+                            {isVivienda && <Home className="h-2.5 w-2.5 mr-1" />}
+                            {s.tipoBienDetalle || "—"}
+                          </Badge>
+                          <span className="text-[9px] text-muted-foreground/60 font-mono">
+                            {s.id.length > 20 ? s.id.substring(0, 20) + "…" : s.id}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="max-w-[250px]">
+                        <Link
+                          href={`/subastas/${encodeURIComponent(s.id)}`}
+                          className="hover:text-primary transition-colors"
+                        >
+                          <p className="truncate text-sm font-medium">
+                            {s.descripcion || "Sin descripción"}
+                          </p>
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="text-xs">
+                            {s.localidad || "—"}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {s.provincia || ""}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums">
+                        {formatCurrency(s.valorSubasta)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                        {formatCurrency(s.tasacion)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {days !== null ? <DaysLeftBadge days={days} /> : "—"}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {analysis ? (
+                          <Link href={`/subastas/${encodeURIComponent(s.id)}`}>
+                            <ScorePill score={analysis.oportunidad} />
+                          </Link>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground/30">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {s.documentos && s.documentos.length > 0 ? (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                            <FileText className="h-3 w-3" />
+                            {s.documentos.length}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground/30">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <a
+                          href={s.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
+                        </a>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
         </div>
+
+        {/* Pagination */}
+        {!loading && filtradas.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              {(pagina - 1) * PAGE_SIZE + 1}–{Math.min(pagina * PAGE_SIZE, filtradas.length)} de{" "}
+              <span className="font-semibold text-foreground">{filtradas.length}</span> subastas
+            </p>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={pagina <= 1}
+                onClick={() => setPagina(1)}
+              >
+                <ChevronsLeft className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={pagina <= 1}
+                onClick={() => setPagina((p) => Math.max(1, p - 1))}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+
+              {/* Page numbers */}
+              {Array.from({ length: Math.min(5, totalPaginas) }).map((_, i) => {
+                let p: number;
+                if (totalPaginas <= 5) {
+                  p = i + 1;
+                } else if (pagina <= 3) {
+                  p = i + 1;
+                } else if (pagina >= totalPaginas - 2) {
+                  p = totalPaginas - 4 + i;
+                } else {
+                  p = pagina - 2 + i;
+                }
+                return (
+                  <Button
+                    key={p}
+                    variant={p === pagina ? "default" : "outline"}
+                    size="icon"
+                    className="h-8 w-8 text-xs"
+                    onClick={() => setPagina(p)}
+                  >
+                    {p}
+                  </Button>
+                );
+              })}
+
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={pagina >= totalPaginas}
+                onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={pagina >= totalPaginas}
+                onClick={() => setPagina(totalPaginas)}
+              >
+                <ChevronsRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <p className="text-center text-[10px] text-muted-foreground/50 tracking-wider uppercase pb-4">
