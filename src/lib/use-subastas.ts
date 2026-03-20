@@ -4,60 +4,62 @@ import { useState, useEffect, useCallback } from "react";
 import type { Subasta } from "./scraper";
 import type { AnalysisResult } from "./storage";
 
-const STORAGE_KEY = "subastas-boe-data";
-const ANALYSIS_KEY = "subastas-boe-analysis";
-
-function loadFromStorage<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function saveToStorage(key: string, data: unknown): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch (e) {
-    console.warn("Error saving to localStorage:", e);
-  }
-}
-
 export function useSubastas() {
   const [subastas, setSubastas] = useState<Subasta[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load from localStorage on mount
-  useEffect(() => {
-    const stored = loadFromStorage<Subasta[]>(STORAGE_KEY, []);
-    setSubastas(stored);
-    setLoading(false);
+  const fetchSubastas = useCallback(async () => {
+    try {
+      const resp = await fetch("/api/subastas");
+      const data = await resp.json();
+      setSubastas(data.subastas || []);
+    } catch (e) {
+      console.error("Error fetching subastas:", e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  // Load from MongoDB on mount
+  useEffect(() => {
+    fetchSubastas();
+  }, [fetchSubastas]);
+
   const addSubastas = useCallback(
-    (nuevas: Subasta[]) => {
+    async (nuevas: Subasta[]) => {
+      // Optimistic update
       setSubastas((prev) => {
-        // Merge: new data overwrites existing by id, preserves non-duplicates
         const map = new Map(prev.map((s) => [s.id, s]));
         for (const s of nuevas) {
-          map.set(s.id, s); // Update existing or add new
+          map.set(s.id, s);
         }
-        const todas = Array.from(map.values()).sort(
-          (a, b) => new Date(b.scrapedAt).getTime() - new Date(a.scrapedAt).getTime()
+        return Array.from(map.values()).sort(
+          (a, b) =>
+            new Date(b.scrapedAt).getTime() - new Date(a.scrapedAt).getTime()
         );
-        saveToStorage(STORAGE_KEY, todas);
-        return todas;
       });
+
+      // Persist to MongoDB
+      try {
+        await fetch("/api/subastas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subastas: nuevas }),
+        });
+      } catch (e) {
+        console.error("Error saving subastas:", e);
+      }
     },
     []
   );
 
-  const clearSubastas = useCallback(() => {
+  const clearSubastas = useCallback(async () => {
     setSubastas([]);
-    saveToStorage(STORAGE_KEY, []);
+    try {
+      await fetch("/api/subastas", { method: "DELETE" });
+    } catch (e) {
+      console.error("Error clearing subastas:", e);
+    }
   }, []);
 
   const getSubasta = useCallback(
@@ -67,52 +69,36 @@ export function useSubastas() {
     [subastas]
   );
 
-  return { subastas, loading, addSubastas, clearSubastas, getSubasta };
+  return { subastas, loading, addSubastas, clearSubastas, getSubasta, refetch: fetchSubastas };
 }
 
 export function useAnalysis() {
   const getAnalysis = useCallback(
-    (subastaId: string): AnalysisResult | null => {
-      const all = loadFromStorage<Record<string, AnalysisResult>>(
-        ANALYSIS_KEY,
-        {}
-      );
-      return all[subastaId] || null;
+    async (subastaId: string): Promise<AnalysisResult | null> => {
+      try {
+        const resp = await fetch(
+          `/api/analysis?subastaId=${encodeURIComponent(subastaId)}`
+        );
+        const data = await resp.json();
+        return data;
+      } catch {
+        return null;
+      }
     },
     []
   );
 
-  const saveAnalysis = useCallback((analysis: AnalysisResult) => {
-    const all = loadFromStorage<Record<string, AnalysisResult>>(
-      ANALYSIS_KEY,
-      {}
-    );
-    all[analysis.subastaId] = analysis;
-    saveToStorage(ANALYSIS_KEY, all);
+  const saveAnalysis = useCallback(async (analysis: AnalysisResult) => {
+    try {
+      await fetch("/api/analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(analysis),
+      });
+    } catch (e) {
+      console.error("Error saving analysis:", e);
+    }
   }, []);
 
   return { getAnalysis, saveAnalysis };
-}
-
-// Export/import for data portability
-export function exportData(): string {
-  const subastas = loadFromStorage<Subasta[]>(STORAGE_KEY, []);
-  const analysis = loadFromStorage<Record<string, AnalysisResult>>(
-    ANALYSIS_KEY,
-    {}
-  );
-  return JSON.stringify({ subastas, analysis }, null, 2);
-}
-
-export function importData(json: string): {
-  subastas: number;
-  analysis: number;
-} {
-  const data = JSON.parse(json);
-  if (data.subastas) saveToStorage(STORAGE_KEY, data.subastas);
-  if (data.analysis) saveToStorage(ANALYSIS_KEY, data.analysis);
-  return {
-    subastas: data.subastas?.length || 0,
-    analysis: Object.keys(data.analysis || {}).length,
-  };
 }

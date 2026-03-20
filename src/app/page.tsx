@@ -313,7 +313,7 @@ export default function Dashboard() {
 
         {/* Footer */}
         <p className="text-center text-[10px] text-muted-foreground/50 tracking-wider uppercase pb-4">
-          Datos públicos de subastas.boe.es — Almacenados en tu navegador
+          Datos públicos de subastas.boe.es — Persistidos en MongoDB
         </p>
       </div>
 

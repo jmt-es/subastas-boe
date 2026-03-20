@@ -22,7 +22,7 @@ import {
   Mail,
 } from "lucide-react";
 import Link from "next/link";
-import { useSubastas, useAnalysis } from "@/lib/use-subastas";
+import { useAnalysis } from "@/lib/use-subastas";
 import type { Subasta, Documento } from "@/lib/scraper";
 import type { AnalysisResult } from "@/lib/storage";
 
@@ -144,22 +144,34 @@ export default function SubastaDetalle({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { subastas, loading: loadingSubastas } = useSubastas();
   const { getAnalysis, saveAnalysis: saveAnalysisLocal } = useAnalysis();
   const [subasta, setSubasta] = useState<Subasta | null>(null);
+  const [loadingSubastas, setLoadingSubastas] = useState(true);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   useEffect(() => {
     const decodedId = decodeURIComponent(id);
-    const found = subastas.find((s) => s.id === decodedId);
-    if (found) {
-      setSubasta(found);
-      const cached = getAnalysis(decodedId);
-      if (cached) setAnalysis(cached);
+    async function load() {
+      try {
+        // Fetch subasta directly from MongoDB
+        const resp = await fetch(`/api/subastas/${encodeURIComponent(decodedId)}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          setSubasta(data);
+        }
+        // Fetch cached analysis
+        const cached = await getAnalysis(decodedId);
+        if (cached) setAnalysis(cached);
+      } catch (e) {
+        console.error("Error loading subasta:", e);
+      } finally {
+        setLoadingSubastas(false);
+      }
     }
-  }, [id, subastas, getAnalysis]);
+    load();
+  }, [id, getAnalysis]);
 
   const handleAnalyze = async () => {
     if (!subasta) return;
