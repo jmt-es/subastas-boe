@@ -1,4 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
+import { gzipSync, gunzipSync } from "zlib";
+import { Binary } from "mongodb";
 import type { Subasta } from "./scraper";
 import type { AnalysisResult } from "./storage";
 import { getDocumentsCollection } from "./mongodb";
@@ -279,6 +281,7 @@ function calculateCost(inputTokens: number, outputTokens: number): number {
 }
 
 // Get PDF base64: check MongoDB cache first, download from BOE if not cached
+// Stored as gzip-compressed binary in MongoDB to save ~30-50% space
 async function getPdfBase64(
   url: string,
   titulo: string,
@@ -287,10 +290,20 @@ async function getPdfBase64(
 ): Promise<string | null> {
   const col = await getDocumentsCollection();
 
-  // Check cache
+  // Check cache - supports both old (base64 string) and new (gzip binary) format
   const cached = await col.findOne({ url });
-  if (cached?.base64) {
-    return cached.base64;
+  if (cached) {
+    if (cached.gzipData) {
+      // New format: decompress gzip → base64
+      const buf = Buffer.isBuffer(cached.gzipData.buffer)
+        ? cached.gzipData.buffer
+        : Buffer.from(cached.gzipData.buffer);
+      return gunzipSync(buf).toString("base64");
+    }
+    if (cached.base64) {
+      // Old format: return directly
+      return cached.base64;
+    }
   }
 
   // Download from BOE
@@ -304,20 +317,17 @@ async function getPdfBase64(
       headers["Cookie"] = `SESSID=${sessionId}`;
     }
 
-    const resp = await fetch(url, {
-      headers,
-      redirect: "follow",
-    });
-
+    const resp = await fetch(url, { headers, redirect: "follow" });
     if (!resp.ok) return null;
 
-    const buffer = await resp.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString("base64");
+    const buffer = Buffer.from(await resp.arrayBuffer());
 
     // Skip tiny responses (likely error/login pages)
-    if (base64.length < 500) return null;
+    if (buffer.length < 500) return null;
 
-    // Save to MongoDB
+    // Compress with gzip and store as Binary
+    const compressed = gzipSync(buffer);
+
     await col.updateOne(
       { url },
       {
@@ -325,15 +335,17 @@ async function getPdfBase64(
           url,
           subastaId,
           titulo,
-          base64,
-          sizeBytes: buffer.byteLength,
+          gzipData: new Binary(compressed),
+          sizeBytes: buffer.length,
+          compressedBytes: compressed.length,
           downloadedAt: new Date().toISOString(),
         },
+        $unset: { base64: "" }, // Remove old format if exists
       },
       { upsert: true }
     );
 
-    return base64;
+    return buffer.toString("base64");
   } catch {
     return null;
   }
