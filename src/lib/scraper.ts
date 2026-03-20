@@ -503,7 +503,8 @@ export interface ScrapeProgress {
 
 export async function scrapeSubastas(
   options: ScrapeOptions = {},
-  onProgress?: (progress: ScrapeProgress) => void
+  onProgress?: (progress: ScrapeProgress) => void,
+  onSubasta?: (subasta: Subasta) => void
 ): Promise<Subasta[]> {
   const {
     tipoBien = "I",
@@ -565,6 +566,8 @@ export async function scrapeSubastas(
 
     if (links.length === 0) break;
 
+    console.log(`📄 Página ${pagina + 1}: ${links.length} subastas encontradas (total acumulado: ${todasSubastas.length})`);
+
     onProgress?.({
       pagina: pagina + 1,
       total,
@@ -575,6 +578,8 @@ export async function scrapeSubastas(
 
     for (let i = 0; i < links.length; i++) {
       const info = links[i];
+      console.log(`  🔍 [${todasSubastas.length + 1}] ${info.id} (${i + 1}/${links.length} en pág ${pagina + 1})`);
+
       onProgress?.({
         pagina: pagina + 1,
         total,
@@ -586,16 +591,19 @@ export async function scrapeSubastas(
       try {
         const { datos: rawData, documentos } = await obtenerDetalleSubasta(info.url, delayMs);
         const campos = mapearCampos(rawData);
-        todasSubastas.push({
+        const subasta: Subasta = {
           id: info.id,
           url: info.url,
           ...campos,
           documentos: documentos.length > 0 ? documentos : undefined,
           rawData,
           scrapedAt: new Date().toISOString(),
-        });
+        };
+        todasSubastas.push(subasta);
+        onSubasta?.(subasta);
+        console.log(`  ✅ ${info.id} — ${campos.tipoBienDetalle || 'N/A'} — ${campos.valorSubasta || '?'} — docs: ${documentos.length}`);
       } catch (e) {
-        console.error(`Error scraping ${info.id}:`, e);
+        console.error(`  ❌ Error scraping ${info.id}:`, e);
       }
 
       await delay(delayMs);
