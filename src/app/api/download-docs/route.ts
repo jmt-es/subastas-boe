@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import { gzipSync } from "zlib";
-import { Binary } from "mongodb";
-import { getSubastasCollection, getDocumentsCollection } from "@/lib/mongodb";
+import { existsSync, writeFileSync, mkdirSync } from "fs";
+import { join } from "path";
+import { getSubastasCollection } from "@/lib/mongodb";
 
 export const maxDuration = 300;
 
@@ -11,45 +11,43 @@ const BOE_HEADERS: Record<string, string> = {
   Accept: "application/pdf,*/*",
 };
 
+const PDF_DIR = join(process.cwd(), "data", "pdfs");
+
+function getPdfPath(subastaId: string, url: string): string {
+  const filename = url.replace(/[^a-zA-Z0-9]/g, "_").slice(-80) + ".pdf";
+  return join(PDF_DIR, subastaId, filename);
+}
+
 async function downloadAndStore(
   url: string,
-  titulo: string,
+  _titulo: string,
   subastaId: string,
-  sessionId: string,
-  col: Awaited<ReturnType<typeof getDocumentsCollection>>
-): Promise<{ ok: boolean; size: number; compressed: number }> {
+  sessionId: string
+): Promise<{ ok: boolean; size: number }> {
   try {
+    const pdfPath = getPdfPath(subastaId, url);
+
+    // Skip if already downloaded
+    if (existsSync(pdfPath)) {
+      return { ok: true, size: 0 };
+    }
+
     const resp = await fetch(url, {
       headers: { ...BOE_HEADERS, Cookie: `SESSID=${sessionId}` },
       redirect: "follow",
     });
-    if (!resp.ok) return { ok: false, size: 0, compressed: 0 };
+    if (!resp.ok) return { ok: false, size: 0 };
 
     const buffer = Buffer.from(await resp.arrayBuffer());
-    if (buffer.length < 500) return { ok: false, size: 0, compressed: 0 };
+    if (buffer.length < 500) return { ok: false, size: 0 };
 
-    const compressed = gzipSync(buffer);
+    // Save to local filesystem
+    mkdirSync(join(PDF_DIR, subastaId), { recursive: true });
+    writeFileSync(pdfPath, buffer);
 
-    await col.updateOne(
-      { url },
-      {
-        $set: {
-          url,
-          subastaId,
-          titulo,
-          gzipData: new Binary(compressed),
-          sizeBytes: buffer.length,
-          compressedBytes: compressed.length,
-          downloadedAt: new Date().toISOString(),
-        },
-        $unset: { base64: "" },
-      },
-      { upsert: true }
-    );
-
-    return { ok: true, size: buffer.length, compressed: compressed.length };
+    return { ok: true, size: buffer.length };
   } catch {
-    return { ok: false, size: 0, compressed: 0 };
+    return { ok: false, size: 0 };
   }
 }
 
@@ -75,7 +73,6 @@ export async function POST(request: NextRequest) {
 
       try {
         const subCol = await getSubastasCollection();
-        const docCol = await getDocumentsCollection();
 
         // Get all subastas with docs
         const subastas = await subCol
@@ -102,21 +99,21 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Check which are already cached
-        const cachedUrls = new Set(await docCol.distinct("url"));
-        const pending = allDocs.filter((d) => !cachedUrls.has(d.url));
+        // Check which are already cached locally
+        const pending = allDocs.filter(
+          (d) => !existsSync(getPdfPath(d.subastaId, d.url))
+        );
 
         send({
           type: "start",
           total: allDocs.length,
-          cached: cachedUrls.size,
+          cached: allDocs.length - pending.length,
           pending: pending.length,
         });
 
         let downloaded = 0;
         let failed = 0;
         let totalSize = 0;
-        let totalCompressed = 0;
 
         // Process in batches of 5 concurrent downloads
         const BATCH_SIZE = 5;
@@ -125,7 +122,7 @@ export async function POST(request: NextRequest) {
 
           const results = await Promise.all(
             batch.map((d) =>
-              downloadAndStore(d.url, d.titulo, d.subastaId, sessionId, docCol)
+              downloadAndStore(d.url, d.titulo, d.subastaId, sessionId)
             )
           );
 
@@ -133,7 +130,6 @@ export async function POST(request: NextRequest) {
             if (r.ok) {
               downloaded++;
               totalSize += r.size;
-              totalCompressed += r.compressed;
             } else {
               failed++;
             }
@@ -145,7 +141,6 @@ export async function POST(request: NextRequest) {
             failed,
             pending: pending.length - downloaded - failed,
             totalSizeMB: (totalSize / 1024 / 1024).toFixed(1),
-            compressedMB: (totalCompressed / 1024 / 1024).toFixed(1),
             pct: Math.round(
               ((downloaded + failed) / pending.length) * 100
             ),
@@ -160,8 +155,6 @@ export async function POST(request: NextRequest) {
           downloaded,
           failed,
           totalSizeMB: (totalSize / 1024 / 1024).toFixed(1),
-          compressedMB: (totalCompressed / 1024 / 1024).toFixed(1),
-          savedMB: ((totalSize - totalCompressed) / 1024 / 1024).toFixed(1),
         });
       } catch (error) {
         send({ type: "error", error: String(error) });

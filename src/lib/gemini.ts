@@ -1,9 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
-import { gzipSync, gunzipSync } from "zlib";
-import { Binary } from "mongodb";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { join } from "path";
 import type { Subasta } from "./scraper";
 import type { AnalysisResult } from "./storage";
-import { getDocumentsCollection } from "./mongodb";
 
 function getClient() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -280,30 +279,27 @@ function calculateCost(inputTokens: number, outputTokens: number): number {
   );
 }
 
-// Get PDF base64: check MongoDB cache first, download from BOE if not cached
-// Stored as gzip-compressed binary in MongoDB to save ~30-50% space
+// PDF storage directory — local filesystem instead of MongoDB
+const PDF_DIR = join(process.cwd(), "data", "pdfs");
+
+function getPdfPath(subastaId: string, url: string): string {
+  // Create a safe filename from the URL
+  const filename = url.replace(/[^a-zA-Z0-9]/g, "_").slice(-80) + ".pdf";
+  return join(PDF_DIR, subastaId, filename);
+}
+
+// Get PDF base64: check local cache first, download from BOE if not cached
 async function getPdfBase64(
   url: string,
   titulo: string,
   subastaId: string,
   sessionId?: string
 ): Promise<string | null> {
-  const col = await getDocumentsCollection();
+  const pdfPath = getPdfPath(subastaId, url);
 
-  // Check cache - supports both old (base64 string) and new (gzip binary) format
-  const cached = await col.findOne({ url });
-  if (cached) {
-    if (cached.gzipData) {
-      // New format: decompress gzip → base64
-      const buf = Buffer.isBuffer(cached.gzipData.buffer)
-        ? cached.gzipData.buffer
-        : Buffer.from(cached.gzipData.buffer);
-      return gunzipSync(buf).toString("base64");
-    }
-    if (cached.base64) {
-      // Old format: return directly
-      return cached.base64;
-    }
+  // Check local cache
+  if (existsSync(pdfPath)) {
+    return readFileSync(pdfPath).toString("base64");
   }
 
   // Download from BOE
@@ -325,25 +321,9 @@ async function getPdfBase64(
     // Skip tiny responses (likely error/login pages)
     if (buffer.length < 500) return null;
 
-    // Compress with gzip and store as Binary
-    const compressed = gzipSync(buffer);
-
-    await col.updateOne(
-      { url },
-      {
-        $set: {
-          url,
-          subastaId,
-          titulo,
-          gzipData: new Binary(compressed),
-          sizeBytes: buffer.length,
-          compressedBytes: compressed.length,
-          downloadedAt: new Date().toISOString(),
-        },
-        $unset: { base64: "" }, // Remove old format if exists
-      },
-      { upsert: true }
-    );
+    // Save to local filesystem
+    mkdirSync(join(PDF_DIR, subastaId), { recursive: true });
+    writeFileSync(pdfPath, buffer);
 
     return buffer.toString("base64");
   } catch {
