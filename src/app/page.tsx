@@ -125,6 +125,7 @@ function DashboardContent() {
   const [showScrape, setShowScrape] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [analyses, setAnalyses] = useState<Record<string, AnalysisResult>>({});
+  const [ordenarPorIA, setOrdenarPorIA] = useState(false);
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -248,8 +249,17 @@ function DashboardContent() {
       );
     }
 
+    // Sort by IA score if enabled
+    if (ordenarPorIA) {
+      result = [...result].sort((a, b) => {
+        const scoreA = analyses[a.id]?.oportunidad ?? -1;
+        const scoreB = analyses[b.id]?.oportunidad ?? -1;
+        return scoreB - scoreA;
+      });
+    }
+
     return result;
-  }, [subastas, busqueda, provinciaFiltro]);
+  }, [subastas, busqueda, provinciaFiltro, ordenarPorIA, analyses]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE));
   // Clamp page if out of range
@@ -415,6 +425,16 @@ function DashboardContent() {
               </button>
             )}
           </div>
+
+          {/* Sort by IA */}
+          <Button
+            variant={ordenarPorIA ? "default" : "outline"}
+            onClick={() => { setOrdenarPorIA(!ordenarPorIA); updateParams({ page: null }); }}
+            className={`h-11 shrink-0 ${ordenarPorIA ? "bg-primary text-primary-foreground" : ""}`}
+          >
+            <Brain className="h-3.5 w-3.5 md:mr-1.5" />
+            <span className="hidden md:inline">IA</span>
+          </Button>
 
           {/* Province filter */}
           <div className="relative">
