@@ -7,9 +7,13 @@ export async function GET() {
   }
 
   try {
+    const cookies = [`SESSID=${sessId}`];
+    const simpleSaml = process.env.BOE_SIMPLESAML;
+    if (simpleSaml) cookies.push(`SimpleSAML=${simpleSaml}`);
+
     const resp = await fetch("https://subastas.boe.es/reg/subastas_ava.php", {
       headers: {
-        Cookie: `SESSID=${sessId}`,
+        Cookie: cookies.join("; "),
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         Accept: "text/html",

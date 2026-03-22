@@ -784,17 +784,21 @@ function SettingsPanel({
   onScrapeOpen: () => void;
 }) {
   const [sessId, setSessId] = useState("");
+  const [simpleSaml, setSimpleSaml] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const handleSaveSession = async () => {
-    if (!sessId.trim()) return;
+    if (!sessId.trim() && !simpleSaml.trim()) return;
     setSaving(true);
     try {
       await fetch("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessId: sessId.trim() }),
+        body: JSON.stringify({
+          sessId: sessId.trim() || undefined,
+          simpleSaml: simpleSaml.trim() || undefined,
+        }),
       });
       setSaved(true);
       onSessionUpdate();
@@ -843,21 +847,27 @@ function SettingsPanel({
             </div>
             <div className="space-y-2">
               <Input
-                placeholder="Pegar nueva SESSID del BOE"
+                placeholder="SESSID"
                 value={sessId}
                 onChange={(e) => setSessId(e.target.value)}
                 className="h-10 text-sm font-mono"
               />
+              <Input
+                placeholder="SimpleSAML"
+                value={simpleSaml}
+                onChange={(e) => setSimpleSaml(e.target.value)}
+                className="h-10 text-sm font-mono"
+              />
               <Button
                 onClick={handleSaveSession}
-                disabled={!sessId.trim() || saving}
+                disabled={(!sessId.trim() && !simpleSaml.trim()) || saving}
                 className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                {saved ? "Guardada" : saving ? "Guardando..." : "Actualizar sesión"}
+                {saved ? "Guardadas" : saving ? "Guardando..." : "Actualizar cookies"}
               </Button>
             </div>
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Loguéate en subastas.boe.es con Cl@ve, abre DevTools → Application → Cookies y copia el valor de SESSID.
+              Loguéate en subastas.boe.es con Cl@ve, abre DevTools → Application → Cookies y copia SESSID y SimpleSAML.
             </p>
           </div>
 

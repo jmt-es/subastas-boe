@@ -315,11 +315,21 @@ async function getPdfBase64(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       Accept: "application/pdf,*/*",
     };
-    if (sessionId) {
-      headers["Cookie"] = `SESSID=${sessionId}`;
+
+    // Build cookie string with both SESSID and SimpleSAML if available
+    const cookies: string[] = [];
+    if (sessionId) cookies.push(`SESSID=${sessionId}`);
+    const simpleSaml = process.env.BOE_SIMPLESAML;
+    if (simpleSaml) cookies.push(`SimpleSAML=${simpleSaml}`);
+    if (cookies.length > 0) headers["Cookie"] = cookies.join("; ");
+
+    // Use /reg/ prefix for authenticated document access
+    let fetchUrl = url;
+    if (sessionId && url.includes("subastas.boe.es/") && !url.includes("/reg/")) {
+      fetchUrl = url.replace("subastas.boe.es/", "subastas.boe.es/reg/");
     }
 
-    const resp = await fetch(url, { headers, redirect: "follow" });
+    const resp = await fetch(fetchUrl, { headers, redirect: "follow" });
     if (!resp.ok) return null;
 
     const buffer = Buffer.from(await resp.arrayBuffer());
