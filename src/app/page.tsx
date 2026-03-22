@@ -257,18 +257,18 @@ function DashboardContent() {
     <main className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-[1400px] mx-auto px-6 py-5">
+        <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-3 md:py-5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-                <Gavel className="h-5 w-5 text-primary" />
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className="w-9 h-9 md:w-10 md:h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                <Gavel className="h-4 w-4 md:h-5 md:w-5 text-primary" />
               </div>
               <div>
-                <h1 className="text-xl font-bold tracking-tight">
+                <h1 className="text-lg md:text-xl font-bold tracking-tight">
                   SUBASTAS
                   <span className="text-primary ml-1.5">BOE</span>
                 </h1>
-                <p className="text-xs text-muted-foreground tracking-wide uppercase">
+                <p className="text-[10px] md:text-xs text-muted-foreground tracking-wide uppercase hidden sm:block">
                   Análisis de subastas judiciales
                 </p>
               </div>
@@ -279,28 +279,28 @@ function DashboardContent() {
                   variant="outline"
                   size="sm"
                   onClick={clearSubastas}
-                  className="text-muted-foreground hover:text-destructive"
+                  className="text-muted-foreground hover:text-destructive h-9 md:h-8"
                 >
-                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                  Limpiar
+                  <Trash2 className="h-3.5 w-3.5 md:mr-1.5" />
+                  <span className="hidden md:inline">Limpiar</span>
                 </Button>
               )}
               <Button
                 size="sm"
                 onClick={() => setShowScrape(true)}
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 h-9 md:h-8"
               >
-                <Download className="h-3.5 w-3.5 mr-1.5" />
-                Scrapear BOE
+                <Download className="h-3.5 w-3.5 md:mr-1.5" />
+                <span className="hidden md:inline">Scrapear BOE</span>
               </Button>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-[1400px] mx-auto px-6 py-8 space-y-6">
+      <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-5 md:py-8 space-y-4 md:space-y-6">
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-3 md:grid-cols-5 gap-2 md:gap-4">
           {[
             { label: "SUBASTAS", value: stats.total.toString(), icon: Gavel },
             { label: "ACTIVAS", value: stats.activas.toString(), icon: Clock },
@@ -322,18 +322,18 @@ function DashboardContent() {
           ].map((stat) => (
             <div
               key={stat.label}
-              className="group relative overflow-hidden rounded-lg border border-border/50 bg-card/50 p-5 transition-colors hover:border-primary/30"
+              className="group relative overflow-hidden rounded-lg border border-border/50 bg-card/50 p-3 md:p-5 transition-colors hover:border-primary/30"
             >
-              <div className="absolute top-0 right-0 w-20 h-20 bg-primary/5 rounded-bl-[40px] transition-colors group-hover:bg-primary/10" />
-              <stat.icon className="h-4 w-4 text-muted-foreground mb-3" />
+              <div className="absolute top-0 right-0 w-16 h-16 md:w-20 md:h-20 bg-primary/5 rounded-bl-[40px] transition-colors group-hover:bg-primary/10" />
+              <stat.icon className="h-3.5 w-3.5 md:h-4 md:w-4 text-muted-foreground mb-2 md:mb-3" />
               {loading ? (
-                <div className="h-8 w-20 bg-muted/50 rounded animate-pulse mt-1" />
+                <div className="h-6 md:h-8 w-16 md:w-20 bg-muted/50 rounded animate-pulse mt-1" />
               ) : (
-                <p className="text-2xl font-bold tracking-tight">
+                <p className="text-lg md:text-2xl font-bold tracking-tight">
                   {stat.value}
                 </p>
               )}
-              <p className="text-[10px] font-semibold tracking-widest text-muted-foreground mt-1">
+              <p className="text-[8px] md:text-[10px] font-semibold tracking-widest text-muted-foreground mt-1">
                 {stat.label}
               </p>
             </div>
@@ -341,11 +341,11 @@ function DashboardContent() {
         </div>
 
         {/* Search + Filters */}
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por descripción, dirección, localidad, tipo..."
+              placeholder="Buscar descripción, dirección, localidad..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               className="pl-11 h-11 bg-card/50 border-border/50 text-sm placeholder:text-muted-foreground/60"
@@ -353,7 +353,7 @@ function DashboardContent() {
             {busqueda && (
               <button
                 onClick={() => setBusqueda("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -366,7 +366,7 @@ function DashboardContent() {
             <select
               value={provinciaFiltro}
               onChange={(e) => setProvincia(e.target.value)}
-              className="h-11 pl-9 pr-8 rounded-md border border-border/50 bg-card/50 text-sm appearance-none cursor-pointer hover:border-primary/30 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="w-full sm:w-auto h-11 pl-9 pr-8 rounded-md border border-border/50 bg-card/50 text-sm appearance-none cursor-pointer hover:border-primary/30 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
               <option value="">Todas las provincias</option>
               {provincias.map((p) => (
@@ -378,7 +378,7 @@ function DashboardContent() {
             {provinciaFiltro && (
               <button
                 onClick={() => setProvincia("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -423,218 +423,181 @@ function DashboardContent() {
           </div>
         )}
 
-        {/* Table */}
-        <div className="rounded-lg border border-border/50 overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border/50 bg-card/30">
-                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                  Tipo
-                </TableHead>
-                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                  Descripción
-                </TableHead>
-                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                  Ubicación
-                </TableHead>
-                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">
-                  Valor
-                </TableHead>
-                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">
-                  Tasación
-                </TableHead>
-                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">
-                  Cierre
-                </TableHead>
-                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">
-                  IA
-                </TableHead>
-                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">
-                  Docs
-                </TableHead>
-                <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase w-8"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                Array.from({ length: PAGE_SIZE }).map((_, i) => (
-                  <TableRow key={i} className="border-border/30">
-                    <TableCell>
-                      <div className="h-5 w-20 bg-muted/40 rounded-full animate-pulse" />
-                    </TableCell>
-                    <TableCell>
-                      <div className="h-4 w-48 bg-muted/30 rounded animate-pulse" />
-                    </TableCell>
-                    <TableCell>
-                      <div className="h-4 w-28 bg-muted/30 rounded animate-pulse" />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="h-4 w-20 bg-muted/40 rounded animate-pulse ml-auto" />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="h-4 w-20 bg-muted/30 rounded animate-pulse ml-auto" />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="h-4 w-8 bg-muted/30 rounded animate-pulse mx-auto" />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="h-4 w-12 bg-muted/20 rounded animate-pulse mx-auto" />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="h-4 w-4 bg-muted/20 rounded animate-pulse mx-auto" />
-                    </TableCell>
-                    <TableCell>
-                      <div className="h-4 w-4 bg-muted/20 rounded animate-pulse" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : filtradas.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-20">
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center">
-                        <Gavel className="h-7 w-7 text-primary/40" />
-                      </div>
-                      <div>
-                        <p className="font-medium">No hay subastas</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {activeFilters > 0 ? (
-                            <button
-                              onClick={() =>
-                                updateParams({
-                                  q: null,
-                                  provincia: null,
-                                  page: null,
-                                })
-                              }
-                              className="text-primary hover:underline font-semibold"
-                            >
-                              Limpiar filtros
-                            </button>
-                          ) : (
-                            <>
-                              Pulsa{" "}
-                              <button
-                                onClick={() => setShowScrape(true)}
-                                className="text-primary hover:underline font-semibold"
-                              >
-                                Scrapear BOE
-                              </button>{" "}
-                              para descargar datos
-                            </>
-                          )}
-                        </p>
-                      </div>
+        {/* Empty / Loading states */}
+        {loading && (
+          <div className="space-y-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-lg border border-border/50 bg-card/50 p-4 animate-pulse">
+                <div className="h-4 w-32 bg-muted/40 rounded mb-2" />
+                <div className="h-3 w-48 bg-muted/30 rounded mb-3" />
+                <div className="flex gap-4">
+                  <div className="h-3 w-20 bg-muted/30 rounded" />
+                  <div className="h-3 w-16 bg-muted/30 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!loading && filtradas.length === 0 && (
+          <div className="flex flex-col items-center gap-4 py-20">
+            <div className="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center">
+              <Gavel className="h-7 w-7 text-primary/40" />
+            </div>
+            <div className="text-center">
+              <p className="font-medium">No hay subastas</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {activeFilters > 0 ? (
+                  <button
+                    onClick={() => updateParams({ q: null, provincia: null, page: null })}
+                    className="text-primary hover:underline font-semibold"
+                  >
+                    Limpiar filtros
+                  </button>
+                ) : (
+                  <>
+                    Pulsa{" "}
+                    <button
+                      onClick={() => setShowScrape(true)}
+                      className="text-primary hover:underline font-semibold"
+                    >
+                      Scrapear BOE
+                    </button>{" "}
+                    para descargar datos
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Mobile Card Layout */}
+        {!loading && paginadas.length > 0 && (
+          <div className="md:hidden space-y-2">
+            {paginadas.map((s) => {
+              const days = daysUntil(s.fechaConclusion);
+              const analysis = analyses[s.id];
+              const isVivienda = s.tipoBienDetalle?.toLowerCase().includes("vivienda");
+              return (
+                <Link
+                  key={s.id}
+                  href={`/subastas/${encodeURIComponent(s.id)}`}
+                  className="block rounded-lg border border-border/50 bg-card/50 p-3.5 active:bg-primary/[0.05] transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <Badge variant="secondary" className="text-[9px] font-semibold tracking-wide shrink-0">
+                      {isVivienda && <Home className="h-2.5 w-2.5 mr-1" />}
+                      {s.tipoBienDetalle || "—"}
+                    </Badge>
+                    <div className="flex items-center gap-2">
+                      {analysis && <ScorePill score={analysis.oportunidad} />}
+                      {days !== null && <DaysLeftBadge days={days} />}
                     </div>
-                  </TableCell>
+                  </div>
+                  <p className="text-sm font-medium line-clamp-2 mb-1.5">
+                    {s.descripcion || "Sin descripción"}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">
+                      {s.localidad || "—"}{s.provincia ? `, ${s.provincia}` : ""}
+                    </span>
+                    <span className="font-mono text-sm font-semibold tabular-nums text-primary">
+                      {formatCurrency(s.valorSubasta)}
+                    </span>
+                  </div>
+                  {s.documentos && s.documentos.length > 0 && (
+                    <div className="flex items-center gap-1 mt-1.5 text-[10px] text-muted-foreground">
+                      <FileText className="h-3 w-3" />
+                      {s.documentos.length} doc{s.documentos.length > 1 ? "s" : ""}
+                    </div>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Desktop Table */}
+        {!loading && paginadas.length > 0 && (
+          <div className="hidden md:block rounded-lg border border-border/50 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border/50 bg-card/30">
+                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Tipo</TableHead>
+                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Descripción</TableHead>
+                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Ubicación</TableHead>
+                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">Valor</TableHead>
+                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">Tasación</TableHead>
+                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">Cierre</TableHead>
+                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">IA</TableHead>
+                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">Docs</TableHead>
+                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase w-8"></TableHead>
                 </TableRow>
-              ) : (
-                paginadas.map((s) => {
+              </TableHeader>
+              <TableBody>
+                {paginadas.map((s) => {
                   const days = daysUntil(s.fechaConclusion);
                   const analysis = analyses[s.id];
-                  const isVivienda = s.tipoBienDetalle
-                    ?.toLowerCase()
-                    .includes("vivienda");
+                  const isVivienda = s.tipoBienDetalle?.toLowerCase().includes("vivienda");
                   return (
-                    <TableRow
-                      key={s.id}
-                      className="border-border/30 hover:bg-primary/[0.03] transition-colors group"
-                    >
+                    <TableRow key={s.id} className="border-border/30 hover:bg-primary/[0.03] transition-colors group">
                       <TableCell>
                         <div className="flex flex-col gap-0.5">
-                          <Badge
-                            variant="secondary"
-                            className="text-[9px] font-semibold tracking-wide w-fit"
-                          >
-                            {isVivienda && (
-                              <Home className="h-2.5 w-2.5 mr-1" />
-                            )}
+                          <Badge variant="secondary" className="text-[9px] font-semibold tracking-wide w-fit">
+                            {isVivienda && <Home className="h-2.5 w-2.5 mr-1" />}
                             {s.tipoBienDetalle || "—"}
                           </Badge>
                           <span className="text-[9px] text-muted-foreground/60 font-mono">
-                            {s.id.length > 20
-                              ? s.id.substring(0, 20) + "…"
-                              : s.id}
+                            {s.id.length > 20 ? s.id.substring(0, 20) + "…" : s.id}
                           </span>
                         </div>
                       </TableCell>
                       <TableCell className="max-w-[250px]">
-                        <Link
-                          href={`/subastas/${encodeURIComponent(s.id)}`}
-                          className="hover:text-primary transition-colors"
-                        >
-                          <p className="truncate text-sm font-medium">
-                            {s.descripcion || "Sin descripción"}
-                          </p>
+                        <Link href={`/subastas/${encodeURIComponent(s.id)}`} className="hover:text-primary transition-colors">
+                          <p className="truncate text-sm font-medium">{s.descripcion || "Sin descripción"}</p>
                         </Link>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
                           <span className="text-xs">{s.localidad || "—"}</span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {s.provincia || ""}
-                          </span>
+                          <span className="text-[10px] text-muted-foreground">{s.provincia || ""}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        {formatCurrency(s.valorSubasta)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
-                        {formatCurrency(s.tasacion)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {days !== null ? (
-                          <DaysLeftBadge days={days} />
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums">{formatCurrency(s.valorSubasta)}</TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">{formatCurrency(s.tasacion)}</TableCell>
+                      <TableCell className="text-center">{days !== null ? <DaysLeftBadge days={days} /> : "—"}</TableCell>
                       <TableCell className="text-center">
                         {analysis ? (
-                          <Link
-                            href={`/subastas/${encodeURIComponent(s.id)}`}
-                          >
-                            <ScorePill score={analysis.oportunidad} />
-                          </Link>
+                          <Link href={`/subastas/${encodeURIComponent(s.id)}`}><ScorePill score={analysis.oportunidad} /></Link>
                         ) : (
-                          <span className="text-[10px] text-muted-foreground/30">
-                            —
-                          </span>
+                          <span className="text-[10px] text-muted-foreground/30">—</span>
                         )}
                       </TableCell>
                       <TableCell className="text-center">
                         {s.documentos && s.documentos.length > 0 ? (
                           <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                            <FileText className="h-3 w-3" />
-                            {s.documentos.length}
+                            <FileText className="h-3 w-3" />{s.documentos.length}
                           </span>
                         ) : (
-                          <span className="text-[10px] text-muted-foreground/30">
-                            —
-                          </span>
+                          <span className="text-[10px] text-muted-foreground/30">—</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        <a
-                          href={s.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
+                        <a href={s.url} target="_blank" rel="noopener noreferrer" className="opacity-0 group-hover:opacity-100 transition-opacity">
                           <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
                         </a>
                       </TableCell>
                     </TableRow>
                   );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
 
         {/* Pagination */}
         {!loading && filtradas.length > PAGE_SIZE && (
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
               {(paginaReal - 1) * PAGE_SIZE + 1}–
               {Math.min(paginaReal * PAGE_SIZE, filtradas.length)} de{" "}
@@ -647,40 +610,41 @@ function DashboardContent() {
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8"
+                className="h-9 w-9 md:h-8 md:w-8"
                 disabled={paginaReal <= 1}
                 onClick={() => setPagina(1)}
               >
-                <ChevronsLeft className="h-3.5 w-3.5" />
+                <ChevronsLeft className="h-4 w-4 md:h-3.5 md:w-3.5" />
               </Button>
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8"
+                className="h-9 w-9 md:h-8 md:w-8"
                 disabled={paginaReal <= 1}
                 onClick={() => setPagina((p) => Math.max(1, p - 1))}
               >
-                <ChevronLeft className="h-3.5 w-3.5" />
+                <ChevronLeft className="h-4 w-4 md:h-3.5 md:w-3.5" />
               </Button>
 
-              {/* Page numbers */}
-              {Array.from({ length: Math.min(5, totalPaginas) }).map((_, i) => {
+              {/* Page numbers - fewer on mobile */}
+              {Array.from({ length: Math.min(totalPaginas <= 3 ? totalPaginas : 3, totalPaginas) }).map((_, i) => {
                 let p: number;
-                if (totalPaginas <= 5) {
+                const maxVisible = totalPaginas <= 3 ? totalPaginas : 3;
+                if (totalPaginas <= maxVisible) {
                   p = i + 1;
-                } else if (paginaReal <= 3) {
+                } else if (paginaReal <= 2) {
                   p = i + 1;
-                } else if (paginaReal >= totalPaginas - 2) {
-                  p = totalPaginas - 4 + i;
+                } else if (paginaReal >= totalPaginas - 1) {
+                  p = totalPaginas - maxVisible + 1 + i;
                 } else {
-                  p = paginaReal - 2 + i;
+                  p = paginaReal - 1 + i;
                 }
                 return (
                   <Button
                     key={p}
                     variant={p === paginaReal ? "default" : "outline"}
                     size="icon"
-                    className="h-8 w-8 text-xs"
+                    className="h-9 w-9 md:h-8 md:w-8 text-xs"
                     onClick={() => setPagina(p)}
                   >
                     {p}
@@ -691,22 +655,22 @@ function DashboardContent() {
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8"
+                className="h-9 w-9 md:h-8 md:w-8"
                 disabled={paginaReal >= totalPaginas}
                 onClick={() =>
                   setPagina((p) => Math.min(totalPaginas, p + 1))
                 }
               >
-                <ChevronRight className="h-3.5 w-3.5" />
+                <ChevronRight className="h-4 w-4 md:h-3.5 md:w-3.5" />
               </Button>
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8"
+                className="h-9 w-9 md:h-8 md:w-8"
                 disabled={paginaReal >= totalPaginas}
                 onClick={() => setPagina(totalPaginas)}
               >
-                <ChevronsRight className="h-3.5 w-3.5" />
+                <ChevronsRight className="h-4 w-4 md:h-3.5 md:w-3.5" />
               </Button>
             </div>
           </div>
