@@ -815,7 +815,17 @@ export default function SubastaDetalle({
               <div className="flex flex-wrap gap-2">
                 {subasta.direccion && (
                   <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([subasta.direccion, subasta.localidad, subasta.provincia].filter(Boolean).join(", "))}`}
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      // Clean address: strip floor/door/staircase info for better geocoding
+                      [
+                        subasta.direccion
+                          .replace(/,?\s*(piso|puerta|pta|escalera|es:|pl:|pt:|planta|atico|bajo|entresuelo|esc)[:\s].*$/i, "")
+                          .replace(/,?\s*\d+[ºª°]\s*[a-z]*$/i, "")
+                          .trim(),
+                        subasta.localidad,
+                        subasta.provincia?.split("/")[0],
+                      ].filter(Boolean).join(", ")
+                    )}`}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -825,9 +835,9 @@ export default function SubastaDetalle({
                     </Button>
                   </a>
                 )}
-                {subasta.referenciaCatastral && (
+                {subasta.referenciaCatastral && subasta.referenciaCatastral.toLowerCase() !== "no consta" && subasta.referenciaCatastral.length >= 14 && (
                   <a
-                    href={`https://www1.sedecatastro.gob.es/CYCBienInmueble/OVCBusqueda.aspx?tipoBusqueda=RCFin&RC=${encodeURIComponent(subasta.referenciaCatastral.replace(/\s/g, ""))}`}
+                    href={`https://www1.sedecatastro.gob.es/CYCBienInmueble/OVCBusqueda.aspx?del=&mun=&tipoBusqueda=1&rc1=${subasta.referenciaCatastral.replace(/\s/g, "").slice(0, 7)}&rc2=${subasta.referenciaCatastral.replace(/\s/g, "").slice(7, 14)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
