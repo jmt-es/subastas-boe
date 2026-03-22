@@ -561,12 +561,19 @@ function DashboardContent() {
                       {formatCurrency(s.valorSubasta)}
                     </span>
                   </div>
-                  {s.documentos && s.documentos.length > 0 && (
-                    <div className="flex items-center gap-1 mt-1.5 text-[10px] text-muted-foreground">
-                      <FileText className="h-3 w-3" />
-                      {s.documentos.length} doc{s.documentos.length > 1 ? "s" : ""}
-                    </div>
-                  )}
+                  <div className="flex items-center gap-3 mt-1.5">
+                    {s.pujActual && (
+                      <span className="text-[10px] font-semibold text-amber-400">
+                        Puja: {formatCurrency(s.pujActual)}
+                      </span>
+                    )}
+                    {s.documentos && s.documentos.length > 0 && (
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <FileText className="h-3 w-3" />
+                        {s.documentos.length} doc{s.documentos.length > 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
                 </Link>
               );
             })}
@@ -584,6 +591,7 @@ function DashboardContent() {
                   <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Ubicación</TableHead>
                   <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">Valor</TableHead>
                   <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">Tasación</TableHead>
+                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">Puja</TableHead>
                   <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">Cierre</TableHead>
                   <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">IA</TableHead>
                   <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">Docs</TableHead>
@@ -621,6 +629,9 @@ function DashboardContent() {
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs tabular-nums">{formatCurrency(s.valorSubasta)}</TableCell>
                       <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">{formatCurrency(s.tasacion)}</TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums">
+                        {s.pujActual ? <span className="text-amber-400 font-semibold">{formatCurrency(s.pujActual)}</span> : <span className="text-muted-foreground/30">—</span>}
+                      </TableCell>
                       <TableCell className="text-center">{days !== null ? <DaysLeftBadge days={days} /> : "—"}</TableCell>
                       <TableCell className="text-center">
                         {analysis ? (

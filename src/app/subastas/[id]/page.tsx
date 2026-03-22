@@ -33,6 +33,8 @@ import {
   BookOpen,
   Shield,
   Sparkles,
+  Copy,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 import { useAnalysis } from "@/lib/use-subastas";
@@ -212,14 +214,86 @@ function BulletSection({
   );
 }
 
+function CopyAnalysisButton({ analysis, subasta }: { analysis: AnalysisResult; subasta?: Subasta | null }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    const text = [
+      `# Análisis IA — ${analysis.subastaId}`,
+      `Score: ${analysis.oportunidad}/10 | Recomendación: ${analysis.recomendacion}`,
+      ``,
+      `## Resumen`,
+      analysis.resumen,
+      ``,
+      subasta?.pujActual ? `## Puja Actual: ${subasta.pujActual}` : "",
+      subasta?.valorSubasta ? `Valor subasta: ${subasta.valorSubasta}` : "",
+      subasta?.tasacion ? `Tasación: ${subasta.tasacion}` : "",
+      ``,
+      `## Económico`,
+      analysis.economico?.valorMercadoEstimado ? `Valor mercado: ${analysis.economico.valorMercadoEstimado}` : "",
+      analysis.economico?.descuentoEstimado ? `Descuento: ${analysis.economico.descuentoEstimado}` : "",
+      analysis.economico?.rentabilidadEstimada ? `Rentabilidad: ${analysis.economico.rentabilidadEstimada}` : "",
+      ...(analysis.economico?.items || []).map(i => `- ${i}`),
+      ``,
+      `## Cargas`,
+      ...analysis.cargas.map(i => `- ${i}`),
+      ``,
+      `## Situación Jurídica`,
+      ...analysis.situacionJuridica.map(i => `- ${i}`),
+      ``,
+      `## Posesión`,
+      ...analysis.posesion.map(i => `- ${i}`),
+      ``,
+      `## Ubicación`,
+      ...analysis.ubicacion.map(i => `- ${i}`),
+      ``,
+      `## Oportunidades`,
+      ...analysis.oportunidades.map(i => `- ${i}`),
+      ``,
+      `## Riesgos`,
+      ...analysis.riesgos.map(i => `- ${i}`),
+      ``,
+      `## Estrategia de Puja`,
+      ...analysis.estrategiaPuja.map(i => `- ${i}`),
+      ``,
+      `## Datos Raw`,
+      "```json",
+      JSON.stringify(subasta?.rawData || {}, null, 2),
+      "```",
+    ].filter(Boolean).join("\n");
+
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Button onClick={handleCopy} variant="outline" size="sm" className="h-9">
+      {copied ? (
+        <>
+          <Check className="h-3.5 w-3.5 mr-1.5 text-emerald-400" />
+          Copiado
+        </>
+      ) : (
+        <>
+          <Copy className="h-3.5 w-3.5 mr-1.5" />
+          Copiar análisis + raw
+        </>
+      )}
+    </Button>
+  );
+}
+
 function AnalysisTab({
   analysis,
   analyzing,
   analyzeError,
+  subasta,
 }: {
   analysis: AnalysisResult | null;
   analyzing: boolean;
   analyzeError: string | null;
+  subasta?: Subasta | null;
 }) {
   if (analyzing) {
     return (
@@ -252,7 +326,12 @@ function AnalysisTab({
 
   return (
     <div className="space-y-5">
-      {/* Score + Recommendation */}
+      {/* Score + Recommendation + Copy */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Análisis Gemini IA</h3>
+        <CopyAnalysisButton analysis={analysis} subasta={subasta} />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="rounded-lg border border-border/50 bg-card/50 p-6">
           <h3 className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-4">
@@ -836,6 +915,7 @@ export default function SubastaDetalle({
                 analysis={analysis}
                 analyzing={analyzing}
                 analyzeError={analyzeError}
+                subasta={subasta}
               />
             </TabsContent>
           )}
