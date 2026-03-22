@@ -35,6 +35,11 @@ import {
   KeyRound,
   Wifi,
   WifiOff,
+  Star,
+  TrendingDown,
+  CheckCircle,
+  Eye,
+  XCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { ScrapeDialog } from "@/components/scrape-dialog";
@@ -62,6 +67,25 @@ function formatCompact(num: number): string {
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(num);
+}
+
+function parseNum(value?: string): number | null {
+  if (!value) return null;
+  const num = parseFloat(value.replace(/[^\d,.-]/g, "").replace(",", "."));
+  return isNaN(num) || num === 0 ? null : num;
+}
+
+function calcDescuento(valorSubasta?: string, tasacion?: string): number | null {
+  const v = parseNum(valorSubasta);
+  const t = parseNum(tasacion);
+  if (!v || !t || t === 0) return null;
+  return Math.round((1 - v / t) * 100);
+}
+
+function DescuentoBadge({ descuento }: { descuento: number | null }) {
+  if (descuento === null) return <span className="text-[10px] text-muted-foreground/30">—</span>;
+  const color = descuento >= 40 ? "text-emerald-400" : descuento >= 20 ? "text-amber-400" : "text-red-400";
+  return <span className={`text-[10px] font-bold tabular-nums ${color}`}>{descuento > 0 ? `-${descuento}%` : `+${Math.abs(descuento)}%`}</span>;
 }
 
 function parseDate(d?: string): Date | null {
@@ -126,6 +150,22 @@ function DashboardContent() {
   const [showSettings, setShowSettings] = useState(false);
   const [analyses, setAnalyses] = useState<Record<string, AnalysisResult>>({});
   const [ordenarPorIA, setOrdenarPorIA] = useState(false);
+  const [ordenarPorDescuento, setOrdenarPorDescuento] = useState(false);
+  const [recFiltro, setRecFiltro] = useState<string>("");
+  const [favoritos, setFavoritos] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try { return new Set(JSON.parse(localStorage.getItem("subastas-favoritos") || "[]")); } catch { return new Set(); }
+  });
+  const [soloFavoritos, setSoloFavoritos] = useState(false);
+
+  const toggleFavorito = useCallback((id: string) => {
+    setFavoritos(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      localStorage.setItem("subastas-favoritos", JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -230,9 +270,19 @@ function DashboardContent() {
   const filtradas = useMemo(() => {
     let result = subastas;
 
+    // Favoritos filter
+    if (soloFavoritos) {
+      result = result.filter((s) => favoritos.has(s.id));
+    }
+
     // Province filter
     if (provinciaFiltro) {
       result = result.filter((s) => s.provincia === provinciaFiltro);
+    }
+
+    // Recommendation filter
+    if (recFiltro) {
+      result = result.filter((s) => analyses[s.id]?.recomendacion === recFiltro);
     }
 
     // Text search
@@ -249,17 +299,23 @@ function DashboardContent() {
       );
     }
 
-    // Sort by IA score if enabled
+    // Sort
     if (ordenarPorIA) {
       result = [...result].sort((a, b) => {
         const scoreA = analyses[a.id]?.oportunidad ?? -1;
         const scoreB = analyses[b.id]?.oportunidad ?? -1;
         return scoreB - scoreA;
       });
+    } else if (ordenarPorDescuento) {
+      result = [...result].sort((a, b) => {
+        const dA = calcDescuento(a.valorSubasta, a.tasacion) ?? -999;
+        const dB = calcDescuento(b.valorSubasta, b.tasacion) ?? -999;
+        return dB - dA;
+      });
     }
 
     return result;
-  }, [subastas, busqueda, provinciaFiltro, ordenarPorIA, analyses]);
+  }, [subastas, busqueda, provinciaFiltro, ordenarPorIA, ordenarPorDescuento, analyses, recFiltro, soloFavoritos, favoritos]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE));
   // Clamp page if out of range
@@ -294,7 +350,7 @@ function DashboardContent() {
   }, [subastas, analyses]);
 
   // Count active filters
-  const activeFilters = (busqueda ? 1 : 0) + (provinciaFiltro ? 1 : 0);
+  const activeFilters = (busqueda ? 1 : 0) + (provinciaFiltro ? 1 : 0) + (recFiltro ? 1 : 0) + (soloFavoritos ? 1 : 0);
 
   return (
     <main className="min-h-screen bg-background">
@@ -426,15 +482,36 @@ function DashboardContent() {
             )}
           </div>
 
-          {/* Sort by IA */}
-          <Button
-            variant={ordenarPorIA ? "default" : "outline"}
-            onClick={() => { setOrdenarPorIA(!ordenarPorIA); updateParams({ page: null }); }}
-            className={`h-11 shrink-0 ${ordenarPorIA ? "bg-primary text-primary-foreground" : ""}`}
-          >
-            <Brain className="h-3.5 w-3.5 md:mr-1.5" />
-            <span className="hidden md:inline">IA</span>
-          </Button>
+          {/* Sort & filter toggles */}
+          <div className="flex gap-1.5 shrink-0">
+            <Button
+              variant={soloFavoritos ? "default" : "outline"}
+              size="icon"
+              onClick={() => { setSoloFavoritos(!soloFavoritos); updateParams({ page: null }); }}
+              className={`h-11 w-11 ${soloFavoritos ? "bg-amber-500 text-white hover:bg-amber-600" : ""}`}
+              title="Favoritos"
+            >
+              <Star className={`h-4 w-4 ${soloFavoritos ? "fill-current" : ""}`} />
+            </Button>
+            <Button
+              variant={ordenarPorIA ? "default" : "outline"}
+              onClick={() => { setOrdenarPorIA(!ordenarPorIA); setOrdenarPorDescuento(false); updateParams({ page: null }); }}
+              className={`h-11 ${ordenarPorIA ? "bg-primary text-primary-foreground" : ""}`}
+              title="Ordenar por puntuación IA"
+            >
+              <Brain className="h-3.5 w-3.5 md:mr-1.5" />
+              <span className="hidden md:inline">IA</span>
+            </Button>
+            <Button
+              variant={ordenarPorDescuento ? "default" : "outline"}
+              onClick={() => { setOrdenarPorDescuento(!ordenarPorDescuento); setOrdenarPorIA(false); updateParams({ page: null }); }}
+              className={`h-11 ${ordenarPorDescuento ? "bg-emerald-600 text-white hover:bg-emerald-700" : ""}`}
+              title="Ordenar por descuento"
+            >
+              <TrendingDown className="h-3.5 w-3.5 md:mr-1.5" />
+              <span className="hidden md:inline">Dcto</span>
+            </Button>
+          </div>
 
           {/* Province filter */}
           <div className="relative">
@@ -491,11 +568,36 @@ function DashboardContent() {
               </Badge>
             )}
             <button
-              onClick={() => updateParams({ q: null, provincia: null, page: null })}
+              onClick={() => { updateParams({ q: null, provincia: null, page: null }); setRecFiltro(""); setSoloFavoritos(false); }}
               className="text-[10px] text-primary hover:underline ml-1"
             >
               Limpiar filtros
             </button>
+          </div>
+        )}
+
+        {/* Recommendation filter pills */}
+        {Object.keys(analyses).length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-muted-foreground mr-1">Filtrar:</span>
+            {([
+              { key: "comprar", label: "Comprar", icon: CheckCircle, color: "emerald" },
+              { key: "observar", label: "Observar", icon: Eye, color: "amber" },
+              { key: "descartar", label: "Descartar", icon: XCircle, color: "red" },
+            ] as const).map(({ key, label, icon: Icon, color }) => (
+              <button
+                key={key}
+                onClick={() => { setRecFiltro(recFiltro === key ? "" : key); updateParams({ page: null }); }}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] font-semibold transition-colors ${
+                  recFiltro === key
+                    ? `bg-${color}-500/20 text-${color}-400 border-${color}-500/40`
+                    : "border-border/50 text-muted-foreground hover:border-border"
+                }`}
+              >
+                <Icon className="h-2.5 w-2.5" />
+                {label}
+              </button>
+            ))}
           </div>
         )}
 
@@ -555,12 +657,18 @@ function DashboardContent() {
               const analysis = analyses[s.id];
               const isVivienda = s.tipoBienDetalle?.toLowerCase().includes("vivienda");
               return (
+                <div key={s.id} className="rounded-lg border border-border/50 bg-card/50 p-3.5 transition-colors relative">
+                  <button
+                    onClick={(e) => { e.preventDefault(); toggleFavorito(s.id); }}
+                    className="absolute top-3 right-3 p-1 z-10"
+                  >
+                    <Star className={`h-4 w-4 ${favoritos.has(s.id) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`} />
+                  </button>
                 <Link
-                  key={s.id}
                   href={`/subastas/${encodeURIComponent(s.id)}`}
-                  className="block rounded-lg border border-border/50 bg-card/50 p-3.5 active:bg-primary/[0.05] transition-colors"
+                  className="block active:bg-primary/[0.05]"
                 >
-                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                  <div className="flex items-start justify-between gap-2 mb-1.5 pr-6">
                     <Badge variant="secondary" className="text-[9px] font-semibold tracking-wide shrink-0">
                       {isVivienda && <Home className="h-2.5 w-2.5 mr-1" />}
                       {s.tipoBienDetalle || "—"}
@@ -577,9 +685,12 @@ function DashboardContent() {
                     <span className="text-xs text-muted-foreground">
                       {s.localidad || "—"}{s.provincia ? `, ${s.provincia}` : ""}
                     </span>
-                    <span className="font-mono text-sm font-semibold tabular-nums text-primary">
-                      {formatCurrency(s.valorSubasta)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <DescuentoBadge descuento={calcDescuento(s.valorSubasta, s.tasacion)} />
+                      <span className="font-mono text-sm font-semibold tabular-nums text-primary">
+                        {formatCurrency(s.valorSubasta)}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 mt-1.5">
                     {s.pujActual && (
@@ -595,6 +706,7 @@ function DashboardContent() {
                     )}
                   </div>
                 </Link>
+                </div>
               );
             })}
           </div>
@@ -611,11 +723,13 @@ function DashboardContent() {
                   <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Ubicación</TableHead>
                   <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">Valor</TableHead>
                   <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">Tasación</TableHead>
+                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">Dcto</TableHead>
                   <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">Puja</TableHead>
                   <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">Cierre</TableHead>
                   <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">IA</TableHead>
                   <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">Docs</TableHead>
                   <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase w-8"></TableHead>
+                  <TableHead className="w-8"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -649,6 +763,7 @@ function DashboardContent() {
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs tabular-nums">{formatCurrency(s.valorSubasta)}</TableCell>
                       <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">{formatCurrency(s.tasacion)}</TableCell>
+                      <TableCell className="text-center"><DescuentoBadge descuento={calcDescuento(s.valorSubasta, s.tasacion)} /></TableCell>
                       <TableCell className="text-right font-mono text-xs tabular-nums">
                         {s.pujActual ? <span className="text-amber-400 font-semibold">{formatCurrency(s.pujActual)}</span> : <span className="text-muted-foreground/30">—</span>}
                       </TableCell>
@@ -673,6 +788,11 @@ function DashboardContent() {
                         <a href={s.url} target="_blank" rel="noopener noreferrer" className="opacity-0 group-hover:opacity-100 transition-opacity">
                           <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
                         </a>
+                      </TableCell>
+                      <TableCell>
+                        <button onClick={() => toggleFavorito(s.id)} className="p-0.5">
+                          <Star className={`h-3.5 w-3.5 transition-colors ${favoritos.has(s.id) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/20 hover:text-amber-400/50"}`} />
+                        </button>
                       </TableCell>
                     </TableRow>
                   );

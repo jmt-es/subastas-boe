@@ -35,6 +35,8 @@ import {
   Sparkles,
   Copy,
   Check,
+  Map,
+  Landmark,
 } from "lucide-react";
 import Link from "next/link";
 import { useAnalysis } from "@/lib/use-subastas";
@@ -807,6 +809,35 @@ export default function SubastaDetalle({
               />
               <InfoRow label="Info adicional" value={subasta.infoAdicional} />
               <InfoRow label="Cargas" value={subasta.cargas} />
+
+              {/* External links */}
+              <Separator className="my-4 bg-border/30" />
+              <div className="flex flex-wrap gap-2">
+                {subasta.direccion && (
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([subasta.direccion, subasta.localidad, subasta.provincia].filter(Boolean).join(", "))}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button variant="outline" size="sm" className="text-xs">
+                      <Map className="h-3.5 w-3.5 mr-1.5" />
+                      Google Maps
+                    </Button>
+                  </a>
+                )}
+                {subasta.referenciaCatastral && (
+                  <a
+                    href={`https://www1.sedecatastro.gob.es/CYCBienInmueble/OVCBusqueda.aspx?tipoBusqueda=RCFin&RC=${encodeURIComponent(subasta.referenciaCatastral.replace(/\s/g, ""))}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button variant="outline" size="sm" className="text-xs">
+                      <Landmark className="h-3.5 w-3.5 mr-1.5" />
+                      Catastro
+                    </Button>
+                  </a>
+                )}
+              </div>
             </div>
           </TabsContent>
 

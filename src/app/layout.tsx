@@ -18,6 +18,14 @@ export const metadata: Metadata = {
   title: "Subastas BOE — Análisis de Subastas Judiciales",
   description:
     "Portal de análisis de subastas judiciales del BOE con inteligencia artificial",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/icon.svg",
+  },
+  themeColor: "#1a1d2e",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
 };
 
 export default function RootLayout({
