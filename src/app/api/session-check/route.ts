@@ -7,7 +7,6 @@ export async function GET() {
   }
 
   try {
-    // Try accessing the logged-in search page
     const resp = await fetch("https://subastas.boe.es/reg/subastas_ava.php", {
       headers: {
         Cookie: `SESSID=${sessId}`,
@@ -18,16 +17,19 @@ export async function GET() {
       redirect: "manual",
     });
 
-    // 200 = logged in, 302 = redirected to login (expired)
-    if (resp.status === 200) {
-      const html = await resp.text();
-      // Double-check: the logged-in page should NOT contain the login redirect
-      const isLoggedIn =
-        !html.includes("redireccionar") && !html.includes("login");
-      return Response.json({ active: isLoggedIn });
+    // 302 = redirected to login (expired)
+    if (resp.status !== 200) {
+      return Response.json({ active: false, reason: "redirect" });
     }
 
-    return Response.json({ active: false, reason: "redirect" });
+    const html = await resp.text();
+
+    // If logged in, the page contains the search form with "accion" field
+    // If NOT logged in, it shows a "redireccionar" meta refresh or SSO redirect
+    const isLoggedIn =
+      html.includes('name="accion"') || html.includes("Buscar");
+
+    return Response.json({ active: isLoggedIn });
   } catch {
     return Response.json({ active: false, reason: "error" });
   }
