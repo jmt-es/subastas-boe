@@ -141,6 +141,9 @@ function DashboardContent() {
 
   useEffect(() => {
     checkSession();
+    // Re-check every 60s
+    const interval = setInterval(checkSession, 60_000);
+    return () => clearInterval(interval);
   }, [checkSession]);
 
   // Read state from URL
@@ -304,19 +307,28 @@ function DashboardContent() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {/* Session indicator */}
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-card/80 border border-border/50" title={sessionActive ? "Sesión BOE activa" : "Sesión BOE inactiva"}>
-                {sessionActive === null ? (
-                  <div className="h-2 w-2 rounded-full bg-muted-foreground/30 animate-pulse" />
-                ) : sessionActive ? (
-                  <Wifi className="h-3 w-3 text-emerald-400" />
-                ) : (
-                  <WifiOff className="h-3 w-3 text-red-400" />
-                )}
-                <span className="text-[10px] font-medium text-muted-foreground hidden sm:inline">
-                  {sessionActive === null ? "..." : sessionActive ? "BOE" : "Sin sesión"}
+              {/* Session LED indicator */}
+              <button
+                onClick={() => setShowSettings(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-card/80 border border-border/50 hover:border-primary/30 transition-colors cursor-pointer"
+                title={sessionActive ? "Sesión BOE activa — click para ajustes" : "Sesión BOE inactiva — click para configurar"}
+              >
+                <span className="relative flex h-2.5 w-2.5">
+                  {sessionActive === null ? (
+                    <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40 animate-pulse" />
+                  ) : sessionActive ? (
+                    <>
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                    </>
+                  ) : (
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+                  )}
                 </span>
-              </div>
+                <span className="text-[10px] font-medium text-muted-foreground hidden sm:inline">
+                  {sessionActive === null ? "..." : sessionActive ? "Sesión activa" : "Sin sesión"}
+                </span>
+              </button>
 
               <Button
                 variant="outline"
