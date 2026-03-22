@@ -299,7 +299,13 @@ async function getPdfBase64(
 
   // Check local cache
   if (existsSync(pdfPath)) {
-    return readFileSync(pdfPath).toString("base64");
+    const cached = readFileSync(pdfPath);
+    // Validate it's a real PDF (%PDF magic bytes)
+    if (cached.length > 4 && cached[0] === 0x25 && cached[1] === 0x50 && cached[2] === 0x44 && cached[3] === 0x46) {
+      return cached.toString("base64");
+    }
+    // Invalid cached file — delete and re-download
+    try { require("fs").unlinkSync(pdfPath); } catch { /* ignore */ }
   }
 
   // Download from BOE
@@ -320,6 +326,11 @@ async function getPdfBase64(
 
     // Skip tiny responses (likely error/login pages)
     if (buffer.length < 500) return null;
+
+    // Validate it's actually a PDF (starts with %PDF)
+    if (buffer[0] !== 0x25 || buffer[1] !== 0x50 || buffer[2] !== 0x44 || buffer[3] !== 0x46) {
+      return null; // Not a PDF — likely HTML login page
+    }
 
     // Save to local filesystem
     mkdirSync(join(PDF_DIR, subastaId), { recursive: true });
