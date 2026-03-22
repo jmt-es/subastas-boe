@@ -20,7 +20,6 @@ import {
   TrendingUp,
   Clock,
   MapPin,
-  Trash2,
   ExternalLink,
   ChevronLeft,
   ChevronRight,
@@ -31,6 +30,11 @@ import {
   Home,
   Filter,
   X,
+  RefreshCw,
+  Settings,
+  KeyRound,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import Link from "next/link";
 import { ScrapeDialog } from "@/components/scrape-dialog";
@@ -117,9 +121,27 @@ function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const { subastas, loading, addSubastas, clearSubastas } = useSubastas();
+  const { subastas, loading, addSubastas, refetch } = useSubastas();
   const [showScrape, setShowScrape] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [analyses, setAnalyses] = useState<Record<string, AnalysisResult>>({});
+  const [sessionActive, setSessionActive] = useState<boolean | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Check BOE session status
+  const checkSession = useCallback(async () => {
+    try {
+      const resp = await fetch("/api/session-check");
+      const data = await resp.json();
+      setSessionActive(data.active ?? false);
+    } catch {
+      setSessionActive(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkSession();
+  }, [checkSession]);
 
   // Read state from URL
   const pagina = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
@@ -183,6 +205,14 @@ function DashboardContent() {
   useEffect(() => {
     fetchAnalyses();
   }, [fetchAnalyses]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    await fetchAnalyses();
+    await checkSession();
+    setRefreshing(false);
+  }, [refetch, fetchAnalyses, checkSession]);
 
   // Get unique provinces from data
   const provincias = useMemo(() => {
@@ -273,25 +303,39 @@ function DashboardContent() {
                 </p>
               </div>
             </div>
-            <div className="flex gap-2">
-              {subastas.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clearSubastas}
-                  className="text-muted-foreground hover:text-destructive h-9 md:h-8"
-                >
-                  <Trash2 className="h-3.5 w-3.5 md:mr-1.5" />
-                  <span className="hidden md:inline">Limpiar</span>
-                </Button>
-              )}
+            <div className="flex items-center gap-2">
+              {/* Session indicator */}
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-card/80 border border-border/50" title={sessionActive ? "Sesión BOE activa" : "Sesión BOE inactiva"}>
+                {sessionActive === null ? (
+                  <div className="h-2 w-2 rounded-full bg-muted-foreground/30 animate-pulse" />
+                ) : sessionActive ? (
+                  <Wifi className="h-3 w-3 text-emerald-400" />
+                ) : (
+                  <WifiOff className="h-3 w-3 text-red-400" />
+                )}
+                <span className="text-[10px] font-medium text-muted-foreground hidden sm:inline">
+                  {sessionActive === null ? "..." : sessionActive ? "BOE" : "Sin sesión"}
+                </span>
+              </div>
+
               <Button
+                variant="outline"
                 size="sm"
-                onClick={() => setShowScrape(true)}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 h-9 md:h-8"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="h-9 md:h-8"
               >
-                <Download className="h-3.5 w-3.5 md:mr-1.5" />
-                <span className="hidden md:inline">Scrapear BOE</span>
+                <RefreshCw className={`h-3.5 w-3.5 md:mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
+                <span className="hidden md:inline">Actualizar</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSettings(true)}
+                className="h-9 md:h-8"
+              >
+                <Settings className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
@@ -691,6 +735,126 @@ function DashboardContent() {
           }}
         />
       )}
+
+      {/* Settings Panel */}
+      {showSettings && (
+        <SettingsPanel
+          onClose={() => setShowSettings(false)}
+          sessionActive={sessionActive}
+          onSessionUpdate={() => checkSession()}
+          onScrapeOpen={() => { setShowSettings(false); setShowScrape(true); }}
+        />
+      )}
     </main>
+  );
+}
+
+function SettingsPanel({
+  onClose,
+  sessionActive,
+  onSessionUpdate,
+  onScrapeOpen,
+}: {
+  onClose: () => void;
+  sessionActive: boolean | null;
+  onSessionUpdate: () => void;
+  onScrapeOpen: () => void;
+}) {
+  const [sessId, setSessId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleSaveSession = async () => {
+    if (!sessId.trim()) return;
+    setSaving(true);
+    try {
+      await fetch("/api/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessId: sessId.trim() }),
+      });
+      setSaved(true);
+      onSessionUpdate();
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+      <div className="w-full max-w-md mx-4 rounded-xl border border-border/50 bg-card shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
+              <Settings className="h-4 w-4 text-primary" />
+            </div>
+            <h2 className="font-bold text-sm">Ajustes</h2>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="px-5 py-5 space-y-5">
+          {/* Session status */}
+          <div className="space-y-3">
+            <label className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase flex items-center gap-1.5">
+              <KeyRound className="h-3 w-3" />
+              Sesión BOE
+            </label>
+            <div className="flex items-center gap-2 p-3 rounded-md border border-border/50 bg-card/50">
+              {sessionActive ? (
+                <>
+                  <div className="h-2.5 w-2.5 rounded-full bg-emerald-400 shrink-0" />
+                  <span className="text-sm text-emerald-400 font-medium">Sesión activa</span>
+                </>
+              ) : (
+                <>
+                  <div className="h-2.5 w-2.5 rounded-full bg-red-400 shrink-0" />
+                  <span className="text-sm text-red-400 font-medium">Sin sesión o expirada</span>
+                </>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Input
+                placeholder="Pegar nueva SESSID del BOE"
+                value={sessId}
+                onChange={(e) => setSessId(e.target.value)}
+                className="h-10 text-sm font-mono"
+              />
+              <Button
+                onClick={handleSaveSession}
+                disabled={!sessId.trim() || saving}
+                className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                {saved ? "Guardada" : saving ? "Guardando..." : "Actualizar sesión"}
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              Loguéate en subastas.boe.es con Cl@ve, abre DevTools → Application → Cookies y copia el valor de SESSID.
+            </p>
+          </div>
+
+          {/* Scraping */}
+          <div className="space-y-3 pt-2 border-t border-border/50">
+            <label className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase flex items-center gap-1.5">
+              <Download className="h-3 w-3" />
+              Scraping
+            </label>
+            <Button
+              variant="outline"
+              onClick={onScrapeOpen}
+              className="w-full h-10"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Configurar y scrapear BOE
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
