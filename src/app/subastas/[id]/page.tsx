@@ -55,9 +55,9 @@ function formatCurrency(value?: string): string {
 
 function ScoreBar({ score }: { score: number }) {
   const color =
-    score >= 7
+    score >= 70
       ? "bg-emerald-500"
-      : score >= 4
+      : score >= 40
         ? "bg-amber-500"
         : "bg-red-500";
   return (
@@ -65,11 +65,11 @@ function ScoreBar({ score }: { score: number }) {
       <div className="flex-1 bg-muted rounded-full h-2.5 overflow-hidden">
         <div
           className={`h-full rounded-full ${color} transition-all duration-700`}
-          style={{ width: `${score * 10}%` }}
+          style={{ width: `${score}%` }}
         />
       </div>
       <span className="text-3xl font-black tabular-nums">{score}</span>
-      <span className="text-sm text-muted-foreground">/10</span>
+      <span className="text-sm text-muted-foreground">/100</span>
     </div>
   );
 }

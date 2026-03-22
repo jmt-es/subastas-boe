@@ -1,8 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
+import { gzipSync, gunzipSync } from "zlib";
+import { Binary } from "mongodb";
 import type { Subasta } from "./scraper";
 import type { AnalysisResult } from "./storage";
+import { getDocumentsCollection } from "./mongodb";
 
 function getClient() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -171,7 +174,7 @@ function buildPrompt(subasta: Subasta): string {
 Devuelve un JSON con EXACTAMENTE esta estructura (sin markdown, solo JSON puro):
 
 {
-  "oportunidad": <número del 1 al 10>,
+  "oportunidad": <número del 0 al 100 — sé preciso, usa todo el rango>,
   "recomendacion": "<comprar|observar|descartar>",
   "resumen": "<resumen de 3-4 frases claro y directo de la oportunidad, como si se lo explicaras a alguien que no sabe nada>",
 
@@ -288,7 +291,11 @@ function getPdfPath(subastaId: string, url: string): string {
   return join(PDF_DIR, subastaId, filename);
 }
 
-// Get PDF base64: check local cache first, download from BOE if not cached
+function isValidPdf(buf: Buffer): boolean {
+  return buf.length > 500 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46;
+}
+
+// Get PDF base64: check local cache → MongoDB cache → download from BOE
 async function getPdfBase64(
   url: string,
   titulo: string,
@@ -297,18 +304,26 @@ async function getPdfBase64(
 ): Promise<string | null> {
   const pdfPath = getPdfPath(subastaId, url);
 
-  // Check local cache
+  // 1. Check local cache
   if (existsSync(pdfPath)) {
     const cached = readFileSync(pdfPath);
-    // Validate it's a real PDF (%PDF magic bytes)
-    if (cached.length > 4 && cached[0] === 0x25 && cached[1] === 0x50 && cached[2] === 0x44 && cached[3] === 0x46) {
-      return cached.toString("base64");
-    }
-    // Invalid cached file — delete and re-download
+    if (isValidPdf(cached)) return cached.toString("base64");
     try { require("fs").unlinkSync(pdfPath); } catch { /* ignore */ }
   }
 
-  // Download from BOE
+  // 2. Check MongoDB cache (for production where local fs is ephemeral)
+  try {
+    const col = await getDocumentsCollection();
+    const cached = await col.findOne({ url });
+    if (cached?.gzipData) {
+      const buf = Buffer.isBuffer(cached.gzipData.buffer)
+        ? cached.gzipData.buffer
+        : Buffer.from(cached.gzipData.buffer);
+      return gunzipSync(buf).toString("base64");
+    }
+  } catch { /* MongoDB not available, continue */ }
+
+  // 3. Download from BOE
   try {
     const headers: Record<string, string> = {
       "User-Agent":
@@ -316,14 +331,12 @@ async function getPdfBase64(
       Accept: "application/pdf,*/*",
     };
 
-    // Build cookie string with both SESSID and SimpleSAML if available
     const cookies: string[] = [];
     if (sessionId) cookies.push(`SESSID=${sessionId}`);
     const simpleSaml = process.env.BOE_SIMPLESAML;
     if (simpleSaml) cookies.push(`SimpleSAML=${simpleSaml}`);
     if (cookies.length > 0) headers["Cookie"] = cookies.join("; ");
 
-    // Use /reg/ prefix for authenticated document access
     let fetchUrl = url;
     if (sessionId && url.includes("subastas.boe.es/") && !url.includes("/reg/")) {
       fetchUrl = url.replace("subastas.boe.es/", "subastas.boe.es/reg/");
@@ -333,18 +346,22 @@ async function getPdfBase64(
     if (!resp.ok) return null;
 
     const buffer = Buffer.from(await resp.arrayBuffer());
-
-    // Skip tiny responses (likely error/login pages)
-    if (buffer.length < 500) return null;
-
-    // Validate it's actually a PDF (starts with %PDF)
-    if (buffer[0] !== 0x25 || buffer[1] !== 0x50 || buffer[2] !== 0x44 || buffer[3] !== 0x46) {
-      return null; // Not a PDF — likely HTML login page
-    }
+    if (!isValidPdf(buffer)) return null;
 
     // Save to local filesystem
     mkdirSync(join(PDF_DIR, subastaId), { recursive: true });
     writeFileSync(pdfPath, buffer);
+
+    // Save to MongoDB (gzip compressed) for production access
+    try {
+      const col = await getDocumentsCollection();
+      const compressed = gzipSync(buffer);
+      await col.updateOne(
+        { url },
+        { $set: { url, subastaId, titulo, gzipData: new Binary(compressed), sizeBytes: buffer.length, compressedBytes: compressed.length, downloadedAt: new Date().toISOString() } },
+        { upsert: true }
+      );
+    } catch { /* ignore MongoDB errors */ }
 
     return buffer.toString("base64");
   } catch {

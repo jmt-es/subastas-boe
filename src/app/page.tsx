@@ -104,9 +104,9 @@ function daysUntil(d?: string): number | null {
 
 function ScorePill({ score }: { score: number }) {
   const bg =
-    score >= 7
+    score >= 70
       ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-      : score >= 4
+      : score >= 40
         ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
         : "bg-red-500/15 text-red-400 border-red-500/30";
   return (
@@ -114,7 +114,7 @@ function ScorePill({ score }: { score: number }) {
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold tabular-nums ${bg}`}
     >
       <Brain className="h-2.5 w-2.5" />
-      {score}/10
+      {score}
     </span>
   );
 }
