@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { existsSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { getSubastasCollection } from "@/lib/mongodb";
+import { PDF_CACHE_DIR, getPdfCachePath } from "@/lib/pdf-cache";
 
 export const maxDuration = 300;
 
@@ -11,13 +12,6 @@ const BOE_HEADERS: Record<string, string> = {
   Accept: "application/pdf,*/*",
 };
 
-const PDF_DIR = join(process.cwd(), "data", "pdfs");
-
-function getPdfPath(subastaId: string, url: string): string {
-  const filename = url.replace(/[^a-zA-Z0-9]/g, "_").slice(-80) + ".pdf";
-  return join(PDF_DIR, subastaId, filename);
-}
-
 async function downloadAndStore(
   url: string,
   _titulo: string,
@@ -25,7 +19,7 @@ async function downloadAndStore(
   sessionId: string
 ): Promise<{ ok: boolean; size: number }> {
   try {
-    const pdfPath = getPdfPath(subastaId, url);
+    const pdfPath = getPdfCachePath(subastaId, url);
 
     // Skip if already downloaded
     if (existsSync(pdfPath)) {
@@ -42,7 +36,7 @@ async function downloadAndStore(
     if (buffer.length < 500) return { ok: false, size: 0 };
 
     // Save to local filesystem
-    mkdirSync(join(PDF_DIR, subastaId), { recursive: true });
+    mkdirSync(join(PDF_CACHE_DIR, subastaId), { recursive: true });
     writeFileSync(pdfPath, buffer);
 
     return { ok: true, size: buffer.length };
@@ -101,7 +95,7 @@ export async function POST(request: NextRequest) {
 
         // Check which are already cached locally
         const pending = allDocs.filter(
-          (d) => !existsSync(getPdfPath(d.subastaId, d.url))
+          (d) => !existsSync(getPdfCachePath(d.subastaId, d.url))
         );
 
         send({

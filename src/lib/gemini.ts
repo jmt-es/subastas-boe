@@ -1,11 +1,12 @@
 import { GoogleGenAI } from "@google/genai";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from "fs";
-import { join } from "path";
+import { dirname } from "path";
 import { gzipSync, gunzipSync } from "zlib";
 import { Binary } from "mongodb";
 import type { Subasta } from "./scraper";
 import type { AnalysisResult } from "./storage";
 import { getDocumentsCollection } from "./mongodb";
+import { getPdfCachePath } from "./pdf-cache";
 
 function getClient() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -282,15 +283,6 @@ function calculateCost(inputTokens: number, outputTokens: number): number {
   );
 }
 
-// PDF storage directory — local filesystem instead of MongoDB
-const PDF_DIR = join(process.cwd(), "data", "pdfs");
-
-function getPdfPath(subastaId: string, url: string): string {
-  // Create a safe filename from the URL
-  const filename = url.replace(/[^a-zA-Z0-9]/g, "_").slice(-80) + ".pdf";
-  return join(PDF_DIR, subastaId, filename);
-}
-
 function isValidPdf(buf: Buffer): boolean {
   return buf.length > 500 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46;
 }
@@ -302,7 +294,7 @@ async function getPdfBase64(
   subastaId: string,
   sessionId?: string
 ): Promise<string | null> {
-  const pdfPath = getPdfPath(subastaId, url);
+  const pdfPath = getPdfCachePath(subastaId, url);
 
   // 1. Check local cache
   if (existsSync(pdfPath)) {
@@ -349,7 +341,7 @@ async function getPdfBase64(
     if (!isValidPdf(buffer)) return null;
 
     // Save to local filesystem
-    mkdirSync(join(PDF_DIR, subastaId), { recursive: true });
+    mkdirSync(dirname(pdfPath), { recursive: true });
     writeFileSync(pdfPath, buffer);
 
     // Save to MongoDB (gzip compressed) for production access
