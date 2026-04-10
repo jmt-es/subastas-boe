@@ -373,7 +373,7 @@ async function obtenerDetalleSubasta(
   delayMs: number = 800
 ): Promise<{ datos: Record<string, string>; documentos: Documento[] }> {
   const datos: Record<string, string> = { url: urlSubasta };
-  let documentos: Documento[] = [];
+  const documentos: Documento[] = [];
 
   let urlBase = urlSubasta;
   let urlSufijo = "";

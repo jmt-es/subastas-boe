@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from "fs";
 import { join } from "path";
 import { gzipSync, gunzipSync } from "zlib";
 import { Binary } from "mongodb";
@@ -308,7 +308,7 @@ async function getPdfBase64(
   if (existsSync(pdfPath)) {
     const cached = readFileSync(pdfPath);
     if (isValidPdf(cached)) return cached.toString("base64");
-    try { require("fs").unlinkSync(pdfPath); } catch { /* ignore */ }
+    try { unlinkSync(pdfPath); } catch { /* ignore */ }
   }
 
   // 2. Check MongoDB cache (for production where local fs is ephemeral)

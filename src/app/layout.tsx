@@ -1,31 +1,42 @@
-import type { Metadata } from "next";
-import { DM_Sans, JetBrains_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { EB_Garamond, JetBrains_Mono, Lato } from "next/font/google";
 import "./globals.css";
 
-const dmSans = DM_Sans({
-  variable: "--font-sans",
+const lato = Lato({
+  variable: "--font-ui",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800", "900"],
+  weight: ["300", "400", "700"],
+});
+
+const ebGaramond = EB_Garamond({
+  variable: "--font-editorial",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-geist-mono",
+  variable: "--font-code",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
-  title: "Subastas BOE — Análisis de Subastas Judiciales",
+  title: {
+    default: "Subasta — Inteligencia para subastas judiciales",
+    template: "%s | Subasta",
+  },
   description:
-    "Portal de análisis de subastas judiciales del BOE con inteligencia artificial",
+    "Plataforma para capturar, analizar y priorizar subastas judiciales del BOE con una interfaz editorial y capas de inteligencia artificial.",
   icons: {
-    icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
-    ],
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
     apple: "/icon.svg",
   },
-  themeColor: "#1a1d2e",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#f4ede1",
 };
 
 export default function RootLayout({
@@ -36,7 +47,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${dmSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${lato.variable} ${ebGaramond.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

@@ -30,7 +30,7 @@ async function main() {
   const analysisCol = db.collection("analysis");
 
   // Load existing analyses
-  let allAnalysis: Record<string, AnalysisResult> = {};
+  const allAnalysis: Record<string, AnalysisResult> = {};
   const analysisFile = join(RESULTS_DIR, "analysis.json");
   if (existsSync(analysisFile)) {
     try {

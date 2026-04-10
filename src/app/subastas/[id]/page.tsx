@@ -28,7 +28,6 @@ import {
   DollarSign,
   Scale,
   Home,
-  TrendingUp,
   Target,
   BookOpen,
   Shield,
@@ -631,7 +630,7 @@ export default function SubastaDetalle({
         <div className="text-center space-y-4">
           <Gavel className="h-12 w-12 text-muted-foreground/30 mx-auto" />
           <p className="text-muted-foreground">Subasta no encontrada</p>
-          <Link href="/">
+          <Link href="/dashboard">
             <Button variant="outline" size="sm">
               <ArrowLeft className="h-4 w-4 mr-1" />
               Volver
@@ -645,20 +644,26 @@ export default function SubastaDetalle({
   return (
     <main className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/86 backdrop-blur-xl">
         <div className="max-w-[1200px] mx-auto px-6 py-4">
           <Link
-            href="/"
+            href="/dashboard"
             className="inline-flex items-center text-xs text-muted-foreground hover:text-primary transition-colors mb-3"
           >
             <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-            Volver al listado
+            Volver al dashboard
           </Link>
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <h1 className="text-lg font-bold tracking-tight font-mono">
+              <span className="editorial-label">Expediente</span>
+              <h1 className="mt-3 text-2xl font-semibold tracking-[-0.04em] font-mono text-foreground md:text-3xl">
                 {subasta.identificador || subasta.id}
               </h1>
+              {subasta.descripcion && (
+                <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
+                  {subasta.descripcion}
+                </p>
+              )}
               <div className="flex items-center gap-3 mt-1.5">
                 <Badge
                   variant="default"
@@ -671,9 +676,9 @@ export default function SubastaDetalle({
                 </span>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 self-start">
               <a href={subasta.url} target="_blank" rel="noopener noreferrer">
-                <Button variant="outline" size="sm" className="text-xs">
+                <Button variant="outline" size="sm" className="text-xs rounded-full">
                   <ExternalLink className="h-3.5 w-3.5 mr-1" />
                   BOE
                 </Button>
@@ -682,7 +687,7 @@ export default function SubastaDetalle({
                 onClick={handleAnalyze}
                 disabled={analyzing}
                 size="sm"
-                className="text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+                className="text-xs rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 {analyzing ? (
                   <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />

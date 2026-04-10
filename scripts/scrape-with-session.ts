@@ -6,10 +6,10 @@ import { config } from "dotenv";
 import { resolve } from "path";
 config({ path: resolve(process.cwd(), ".env.local") });
 
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
+import { writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { MongoClient } from "mongodb";
-import { scrapeSubastas, type Subasta } from "../src/lib/scraper";
+import { scrapeSubastas } from "../src/lib/scraper";
 import { analizarSubasta } from "../src/lib/gemini";
 import type { AnalysisResult } from "../src/lib/storage";
 

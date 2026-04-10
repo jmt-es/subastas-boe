@@ -1,1033 +1,534 @@
-"use client";
-
-import { useState, useMemo, useEffect, useCallback, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Search,
-  Download,
-  Gavel,
-  TrendingUp,
-  Clock,
-  MapPin,
-  ExternalLink,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  Brain,
-  FileText,
-  Home,
-  Filter,
-  X,
-  RefreshCw,
-  Settings,
-  KeyRound,
-  Wifi,
-  WifiOff,
-  Star,
-  TrendingDown,
-  CheckCircle,
-  Eye,
-  XCircle,
-} from "lucide-react";
 import Link from "next/link";
-import { ScrapeDialog } from "@/components/scrape-dialog";
-import { useSubastas } from "@/lib/use-subastas";
-import type { AnalysisResult } from "@/lib/storage";
+import {
+  ArrowRight,
+  BookOpenText,
+  Brain,
+  FileArchive,
+  Gavel,
+  HeartHandshake,
+  MapPinned,
+  Radar,
+  Scale,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react";
 
-const PAGE_SIZE = 25;
+const trustPoints = [
+  "Datos públicos del BOE organizados en una sola superficie operativa",
+  "Análisis IA con señales económicas, jurídicas y documentales",
+  "Archivo centralizado de PDFs, favoritos y seguimiento de sesión",
+  "Diseñado para inversores, analistas y equipos de sourcing inmobiliario",
+];
 
-function formatCurrency(value?: string): string {
-  if (!value) return "—";
-  if (value.toLowerCase().includes("lote")) return "Ver lotes";
-  const num = parseFloat(value.replace(/[^\d,.-]/g, "").replace(",", "."));
-  if (isNaN(num) || num === 0) return "—";
-  return new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(num);
+const workflow = [
+  {
+    step: "01",
+    title: "Scrapea el mercado",
+    body: "Captura subastas activas por provincia y tipo de bien sin depender del portal oficial como superficie principal.",
+  },
+  {
+    step: "02",
+    title: "Analiza cada caso",
+    body: "La IA resume la oportunidad, detecta riesgos, estima descuento y deja una lectura mucho más accionable.",
+  },
+  {
+    step: "03",
+    title: "Decide con criterio",
+    body: "Ordena por score, revisa la documentación y convierte cada expediente en una tesis de inversión concreta.",
+  },
+];
+
+const features = [
+  {
+    icon: Brain,
+    title: "Prioridad IA",
+    body: "Scoring, recomendación y resumen ejecutivo para no revisar expedientes a ciegas.",
+  },
+  {
+    icon: Scale,
+    title: "Lectura jurídica",
+    body: "Situación posesoria, cargas, autoridad gestora y contexto legal en una sola vista.",
+  },
+  {
+    icon: FileArchive,
+    title: "Dossier documental",
+    body: "Documentos adjuntos y referencias clave preparados para análisis posterior.",
+  },
+  {
+    icon: MapPinned,
+    title: "Señal territorial",
+    body: "Ubicación, provincia y contexto operativo para filtrar por estrategia de búsqueda.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Monitor de sesión",
+    body: "Control de cookies y estado BOE para que el pipeline operativo no se corte en mitad del proceso.",
+  },
+  {
+    icon: Sparkles,
+    title: "Favoritos y enfoque",
+    body: "Guarda oportunidades, limpia ruido y mantén un shortlist de alta convicción.",
+  },
+];
+
+const dashboardPreviewRows = [
+  {
+    type: "Vivienda",
+    description: "Piso en avenida costera con documentación adjunta y puja activa",
+    location: "Alicante",
+    value: "168.000 €",
+    score: "82",
+    status: "Comprar",
+  },
+  {
+    type: "Local",
+    description: "Activo bancario en zona comercial con descuento visible frente a tasación",
+    location: "Murcia",
+    value: "112.000 €",
+    score: "64",
+    status: "Observar",
+  },
+  {
+    type: "Solar",
+    description: "Expediente con riesgo jurídico elevado y escasa información registral",
+    location: "Valencia",
+    value: "91.000 €",
+    score: "29",
+    status: "Descartar",
+  },
+];
+
+function LandingMetric({
+  value,
+  label,
+}: {
+  value: string;
+  label: string;
+}) {
+  return (
+    <div className="paper-panel rounded-[28px] px-5 py-4">
+      <p className="font-heading text-3xl leading-none text-foreground md:text-4xl">
+        {value}
+      </p>
+      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+        {label}
+      </p>
+    </div>
+  );
 }
 
-function formatCompact(num: number): string {
-  return new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency: "EUR",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(num);
-}
+function PreviewStatus({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "positive" | "neutral" | "negative";
+}) {
+  const toneClasses = {
+    positive:
+      "border-emerald-700/15 bg-emerald-700/8 text-emerald-900",
+    neutral: "border-[var(--border)] bg-[var(--accent)] text-foreground",
+    negative: "border-rose-900/10 bg-rose-900/6 text-rose-950",
+  };
 
-function parseNum(value?: string): number | null {
-  if (!value) return null;
-  const num = parseFloat(value.replace(/[^\d,.-]/g, "").replace(",", "."));
-  return isNaN(num) || num === 0 ? null : num;
-}
-
-function calcDescuento(valorSubasta?: string, tasacion?: string): number | null {
-  const v = parseNum(valorSubasta);
-  const t = parseNum(tasacion);
-  if (!v || !t || t === 0) return null;
-  return Math.round((1 - v / t) * 100);
-}
-
-function DescuentoBadge({ descuento }: { descuento: number | null }) {
-  if (descuento === null) return <span className="text-[10px] text-muted-foreground/30">—</span>;
-  const color = descuento >= 40 ? "text-emerald-400" : descuento >= 20 ? "text-amber-400" : "text-red-400";
-  return <span className={`text-[10px] font-bold tabular-nums ${color}`}>{descuento > 0 ? `-${descuento}%` : `+${Math.abs(descuento)}%`}</span>;
-}
-
-function parseDate(d?: string): Date | null {
-  if (!d) return null;
-  const m = d.match(/(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
-  if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:${m[6]}`);
-  const iso = new Date(d);
-  return isNaN(iso.getTime()) ? null : iso;
-}
-
-function daysUntil(d?: string): number | null {
-  const date = parseDate(d);
-  if (!date) return null;
-  return Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-}
-
-function ScorePill({ score }: { score: number }) {
-  const bg =
-    score >= 70
-      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-      : score >= 40
-        ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
-        : "bg-red-500/15 text-red-400 border-red-500/30";
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold tabular-nums ${bg}`}
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] ${toneClasses[tone]}`}
     >
-      <Brain className="h-2.5 w-2.5" />
-      {score}
+      {label}
     </span>
   );
 }
 
-function DaysLeftBadge({ days }: { days: number }) {
-  const color =
-    days <= 3
-      ? "text-red-400"
-      : days <= 7
-        ? "text-amber-400"
-        : "text-muted-foreground";
+export default function LandingPage() {
   return (
-    <span className={`text-[10px] font-semibold tabular-nums ${color}`}>
-      {days <= 0 ? "Finalizada" : `${days}d`}
-    </span>
-  );
-}
+    <main className="relative min-h-screen overflow-hidden">
+      <div className="absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(circle_at_top_left,rgba(161,97,45,0.18),transparent_48%),radial-gradient(circle_at_top_right,rgba(43,88,66,0.14),transparent_38%)]" />
 
-export default function Dashboard() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-background" />}>
-      <DashboardContent />
-    </Suspense>
-  );
-}
-
-function DashboardContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const { subastas, loading, addSubastas, refetch } = useSubastas();
-  const [showScrape, setShowScrape] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [analyses, setAnalyses] = useState<Record<string, AnalysisResult>>({});
-  const [ordenarPorIA, setOrdenarPorIA] = useState(false);
-  const [ordenarPorDescuento, setOrdenarPorDescuento] = useState(false);
-  const [recFiltro, setRecFiltro] = useState<string>("");
-  const [favoritos, setFavoritos] = useState<Set<string>>(() => {
-    if (typeof window === "undefined") return new Set();
-    try { return new Set(JSON.parse(localStorage.getItem("subastas-favoritos") || "[]")); } catch { return new Set(); }
-  });
-  const [soloFavoritos, setSoloFavoritos] = useState(false);
-
-  const toggleFavorito = useCallback((id: string) => {
-    setFavoritos(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      localStorage.setItem("subastas-favoritos", JSON.stringify([...next]));
-      return next;
-    });
-  }, []);
-  const [sessionActive, setSessionActive] = useState<boolean | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-
-  // Check BOE session status
-  const checkSession = useCallback(async () => {
-    try {
-      const resp = await fetch("/api/session-check");
-      const data = await resp.json();
-      setSessionActive(data.active ?? false);
-    } catch {
-      setSessionActive(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    checkSession();
-    // Re-check every 60s
-    const interval = setInterval(checkSession, 60_000);
-    return () => clearInterval(interval);
-  }, [checkSession]);
-
-  // Read state from URL
-  const pagina = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-  const busqueda = searchParams.get("q") || "";
-  const provinciaFiltro = searchParams.get("provincia") || "";
-
-  // Helper to update URL params
-  const updateParams = useCallback(
-    (updates: Record<string, string | null>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      for (const [key, val] of Object.entries(updates)) {
-        if (val === null || val === "") {
-          params.delete(key);
-        } else {
-          params.set(key, val);
-        }
-      }
-      const qs = params.toString();
-      router.push(qs ? `/?${qs}` : "/", { scroll: false });
-    },
-    [searchParams, router]
-  );
-
-  const setPagina = useCallback(
-    (p: number | ((prev: number) => number)) => {
-      const next = typeof p === "function" ? p(pagina) : p;
-      updateParams({ page: next <= 1 ? null : String(next) });
-    },
-    [pagina, updateParams]
-  );
-
-  const setBusqueda = useCallback(
-    (q: string) => {
-      updateParams({ q: q || null, page: null });
-    },
-    [updateParams]
-  );
-
-  const setProvincia = useCallback(
-    (prov: string) => {
-      updateParams({ provincia: prov || null, page: null });
-    },
-    [updateParams]
-  );
-
-  // Load all analyses from MongoDB
-  const fetchAnalyses = useCallback(async () => {
-    try {
-      const resp = await fetch("/api/analysis?all=1");
-      const data = await resp.json();
-      if (Array.isArray(data)) {
-        const map: Record<string, AnalysisResult> = {};
-        for (const a of data) map[a.subastaId] = a;
-        setAnalyses(map);
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchAnalyses();
-  }, [fetchAnalyses]);
-
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refetch();
-    await fetchAnalyses();
-    await checkSession();
-    setRefreshing(false);
-  }, [refetch, fetchAnalyses, checkSession]);
-
-  // Get unique provinces from data
-  const provincias = useMemo(() => {
-    const set = new Set<string>();
-    for (const s of subastas) {
-      if (s.provincia) set.add(s.provincia);
-    }
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "es"));
-  }, [subastas]);
-
-  const filtradas = useMemo(() => {
-    let result = subastas;
-
-    // Favoritos filter
-    if (soloFavoritos) {
-      result = result.filter((s) => favoritos.has(s.id));
-    }
-
-    // Province filter
-    if (provinciaFiltro) {
-      result = result.filter((s) => s.provincia === provinciaFiltro);
-    }
-
-    // Recommendation filter
-    if (recFiltro) {
-      result = result.filter((s) => analyses[s.id]?.recomendacion === recFiltro);
-    }
-
-    // Text search
-    if (busqueda.trim()) {
-      const q = busqueda.toLowerCase();
-      result = result.filter(
-        (s) =>
-          s.descripcion?.toLowerCase().includes(q) ||
-          s.direccion?.toLowerCase().includes(q) ||
-          s.localidad?.toLowerCase().includes(q) ||
-          s.provincia?.toLowerCase().includes(q) ||
-          s.tipoBienDetalle?.toLowerCase().includes(q) ||
-          s.id.toLowerCase().includes(q)
-      );
-    }
-
-    // Sort
-    if (ordenarPorIA) {
-      result = [...result].sort((a, b) => {
-        const scoreA = analyses[a.id]?.oportunidad ?? -1;
-        const scoreB = analyses[b.id]?.oportunidad ?? -1;
-        return scoreB - scoreA;
-      });
-    } else if (ordenarPorDescuento) {
-      result = [...result].sort((a, b) => {
-        const dA = calcDescuento(a.valorSubasta, a.tasacion) ?? -999;
-        const dB = calcDescuento(b.valorSubasta, b.tasacion) ?? -999;
-        return dB - dA;
-      });
-    }
-
-    return result;
-  }, [subastas, busqueda, provinciaFiltro, ordenarPorIA, ordenarPorDescuento, analyses, recFiltro, soloFavoritos, favoritos]);
-
-  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE));
-  // Clamp page if out of range
-  const paginaReal = Math.min(pagina, totalPaginas);
-  const paginadas = filtradas.slice(
-    (paginaReal - 1) * PAGE_SIZE,
-    paginaReal * PAGE_SIZE
-  );
-
-  const stats = useMemo(() => {
-    const now = Date.now();
-    let activas = 0;
-    let valorTotal = 0;
-
-    for (const s of subastas) {
-      const end = parseDate(s.fechaConclusion);
-      if (end && end.getTime() > now) activas++;
-      const num = parseFloat(
-        (s.valorSubasta || "0").replace(/[^\d,.-]/g, "").replace(",", ".")
-      );
-      if (!isNaN(num)) valorTotal += num;
-    }
-
-    return {
-      total: subastas.length,
-      activas,
-      valorTotal,
-      provincias: new Set(subastas.map((s) => s.provincia).filter(Boolean))
-        .size,
-      analizadas: Object.keys(analyses).length,
-    };
-  }, [subastas, analyses]);
-
-  // Count active filters
-  const activeFilters = (busqueda ? 1 : 0) + (provinciaFiltro ? 1 : 0) + (recFiltro ? 1 : 0) + (soloFavoritos ? 1 : 0);
-
-  return (
-    <main className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-3 md:py-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 md:gap-4">
-              <div className="w-9 h-9 md:w-10 md:h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                <Gavel className="h-4 w-4 md:h-5 md:w-5 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-lg md:text-xl font-bold tracking-tight">
-                  SUBASTAS
-                  <span className="text-primary ml-1.5">BOE</span>
-                </h1>
-                <p className="text-[10px] md:text-xs text-muted-foreground tracking-wide uppercase hidden sm:block">
-                  Análisis de subastas judiciales
-                </p>
-              </div>
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/86 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 md:px-6">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-primary/20 bg-primary/10 text-primary shadow-[0_12px_30px_rgba(154,91,49,0.12)]">
+              <Gavel className="h-5 w-5" />
             </div>
-            <div className="flex items-center gap-2">
-              {/* Session LED indicator */}
-              <button
-                onClick={() => setShowSettings(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-card/80 border border-border/50 hover:border-primary/30 transition-colors cursor-pointer"
-                title={sessionActive ? "Sesión BOE activa — click para ajustes" : "Sesión BOE inactiva — click para configurar"}
-              >
-                <span className="relative flex h-2.5 w-2.5">
-                  {sessionActive === null ? (
-                    <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40 animate-pulse" />
-                  ) : sessionActive ? (
-                    <>
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                    </>
-                  ) : (
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
-                  )}
-                </span>
-                <span className="text-[10px] font-medium text-muted-foreground hidden sm:inline">
-                  {sessionActive === null ? "..." : sessionActive ? "Sesión activa" : "Sin sesión"}
-                </span>
-              </button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="h-9 md:h-8"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 md:mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
-                <span className="hidden md:inline">Actualizar</span>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowSettings(true)}
-                className="h-9 md:h-8"
-              >
-                <Settings className="h-3.5 w-3.5" />
-              </Button>
+            <div>
+              <p className="font-heading text-2xl leading-none tracking-[-0.04em] text-foreground">
+                Subasta
+              </p>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+                Judicial Intelligence
+              </p>
             </div>
+          </Link>
+
+          <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
+            <a href="#como-funciona" className="transition-colors hover:text-foreground">
+              Método
+            </a>
+            <a href="#producto" className="transition-colors hover:text-foreground">
+              Producto
+            </a>
+            <a href="#caso" className="transition-colors hover:text-foreground">
+              Caso
+            </a>
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:text-primary"
+            >
+              Entrar al panel
+            </Link>
           </div>
         </div>
       </header>
 
-      <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-5 md:py-8 space-y-4 md:space-y-6">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-3 md:grid-cols-5 gap-2 md:gap-4">
-          {[
-            { label: "SUBASTAS", value: stats.total.toString(), icon: Gavel },
-            { label: "ACTIVAS", value: stats.activas.toString(), icon: Clock },
-            {
-              label: "VALOR TOTAL",
-              value: formatCompact(stats.valorTotal),
-              icon: TrendingUp,
-            },
-            {
-              label: "PROVINCIAS",
-              value: stats.provincias.toString(),
-              icon: MapPin,
-            },
-            {
-              label: "ANALIZADAS IA",
-              value: stats.analizadas.toString(),
-              icon: Brain,
-            },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="group relative overflow-hidden rounded-lg border border-border/50 bg-card/50 p-3 md:p-5 transition-colors hover:border-primary/30"
+      <section className="mx-auto grid max-w-7xl gap-8 px-4 pb-12 pt-10 md:px-6 md:pb-16 md:pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+        <div className="space-y-8">
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/8 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+            <Radar className="h-3.5 w-3.5" />
+            Radar editorial para subastas BOE
+          </div>
+
+          <div className="space-y-5">
+            <h1 className="max-w-4xl font-heading text-5xl leading-[0.94] tracking-[-0.06em] text-foreground md:text-7xl">
+              Encuentra oportunidades judiciales con una lectura de mercado, no
+              con una hoja caótica.
+            </h1>
+            <p className="max-w-2xl text-lg leading-8 text-muted-foreground md:text-xl">
+              Subasta convierte expedientes públicos del BOE en una mesa de
+              trabajo clara: captura, analiza, ordena y decide con una capa de
+              inteligencia pensada para inversión inmobiliaria.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-[0_18px_40px_rgba(154,91,49,0.18)] transition-all hover:-translate-y-0.5 hover:shadow-[0_24px_50px_rgba(154,91,49,0.22)]"
             >
-              <div className="absolute top-0 right-0 w-16 h-16 md:w-20 md:h-20 bg-primary/5 rounded-bl-[40px] transition-colors group-hover:bg-primary/10" />
-              <stat.icon className="h-3.5 w-3.5 md:h-4 md:w-4 text-muted-foreground mb-2 md:mb-3" />
-              {loading ? (
-                <div className="h-6 md:h-8 w-16 md:w-20 bg-muted/50 rounded animate-pulse mt-1" />
-              ) : (
-                <p className="text-lg md:text-2xl font-bold tracking-tight">
-                  {stat.value}
+              Abrir dashboard
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+            <a
+              href="#como-funciona"
+              className="inline-flex items-center justify-center rounded-full border border-border bg-card px-6 py-3.5 text-sm font-semibold text-foreground transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:text-primary"
+            >
+              Ver cómo funciona
+            </a>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <LandingMetric value="IA + BOE" label="Fuente y lectura" />
+            <LandingMetric value="PDFs" label="Archivo centralizado" />
+            <LandingMetric value="Score" label="Decisión priorizada" />
+          </div>
+        </div>
+
+        <div className="relative">
+          <div className="absolute inset-0 -z-10 rounded-[40px] bg-[radial-gradient(circle_at_top,rgba(154,91,49,0.18),transparent_36%),radial-gradient(circle_at_bottom_left,rgba(41,92,67,0.18),transparent_36%)] blur-3xl" />
+          <div className="paper-panel-strong relative overflow-hidden rounded-[36px] p-5 md:p-7">
+            <div className="absolute inset-x-10 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(154,91,49,0.5),transparent)]" />
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="editorial-label">Vista editorial</span>
+              <span className="inline-flex items-center rounded-full border border-emerald-700/15 bg-emerald-700/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-900">
+                Sesión operativa activa
+              </span>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-[1.05fr_0.95fr]">
+              <div className="rounded-[28px] border border-border/70 bg-[rgba(255,255,255,0.54)] p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+                  Oportunidad destacada
                 </p>
-              )}
-              <p className="text-[8px] md:text-[10px] font-semibold tracking-widest text-muted-foreground mt-1">
-                {stat.label}
-              </p>
+                <div className="mt-4 flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-heading text-3xl tracking-[-0.05em] text-foreground">
+                      Piso exterior en Alicante
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      Expediente con documentación adjunta, descuento visible
+                      frente a tasación y recomendación positiva.
+                    </p>
+                  </div>
+                  <div className="rounded-[22px] border border-emerald-700/15 bg-emerald-700/8 px-4 py-3 text-right">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-900">
+                      Score
+                    </p>
+                    <p className="mt-1 font-heading text-4xl leading-none text-emerald-950">
+                      82
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-[20px] bg-background/75 px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Valor subasta
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-foreground">
+                      168.000 €
+                    </p>
+                  </div>
+                  <div className="rounded-[20px] bg-background/75 px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Tasación
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-foreground">
+                      244.000 €
+                    </p>
+                  </div>
+                  <div className="rounded-[20px] bg-background/75 px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Docs
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-foreground">
+                      4 adjuntos
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-[28px] border border-border/70 bg-[rgba(255,255,255,0.6)] p-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+                    Prioridad semanal
+                  </p>
+                  <div className="mt-4 space-y-3">
+                    {[
+                      ["Comprar", "12 activos"],
+                      ["Observar", "19 expedientes"],
+                      ["Descartar", "9 señales rojas"],
+                    ].map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="flex items-center justify-between rounded-[20px] bg-background/80 px-4 py-3"
+                      >
+                        <span className="text-sm font-medium text-foreground">
+                          {label}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[28px] border border-primary/12 bg-primary/8 p-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+                    Tesis de producto
+                  </p>
+                  <p className="mt-3 text-sm leading-7 text-foreground">
+                    Menos navegación manual y más criterio acumulado por
+                    expediente. La interfaz pública inspira confianza; el panel
+                    operativo concentra la ejecución.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 md:px-6">
+        <div className="paper-panel grid gap-4 rounded-[32px] p-5 md:grid-cols-2 md:p-7 lg:grid-cols-4">
+          {trustPoints.map((point) => (
+            <div key={point} className="rounded-[24px] bg-background/70 px-4 py-4">
+              <p className="text-sm leading-6 text-foreground">{point}</p>
             </div>
           ))}
         </div>
+      </section>
 
-        {/* Search + Filters */}
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar descripción, dirección, localidad..."
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              className="pl-11 h-11 bg-card/50 border-border/50 text-sm placeholder:text-muted-foreground/60"
-            />
-            {busqueda && (
-              <button
-                onClick={() => setBusqueda("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Sort & filter toggles */}
-          <div className="flex gap-1.5 shrink-0">
-            <Button
-              variant={soloFavoritos ? "default" : "outline"}
-              size="icon"
-              onClick={() => { setSoloFavoritos(!soloFavoritos); updateParams({ page: null }); }}
-              className={`h-11 w-11 ${soloFavoritos ? "bg-amber-500 text-white hover:bg-amber-600" : ""}`}
-              title="Favoritos"
-            >
-              <Star className={`h-4 w-4 ${soloFavoritos ? "fill-current" : ""}`} />
-            </Button>
-            <Button
-              variant={ordenarPorIA ? "default" : "outline"}
-              onClick={() => { setOrdenarPorIA(!ordenarPorIA); setOrdenarPorDescuento(false); updateParams({ page: null }); }}
-              className={`h-11 ${ordenarPorIA ? "bg-primary text-primary-foreground" : ""}`}
-              title="Ordenar por puntuación IA"
-            >
-              <Brain className="h-3.5 w-3.5 md:mr-1.5" />
-              <span className="hidden md:inline">IA</span>
-            </Button>
-            <Button
-              variant={ordenarPorDescuento ? "default" : "outline"}
-              onClick={() => { setOrdenarPorDescuento(!ordenarPorDescuento); setOrdenarPorIA(false); updateParams({ page: null }); }}
-              className={`h-11 ${ordenarPorDescuento ? "bg-emerald-600 text-white hover:bg-emerald-700" : ""}`}
-              title="Ordenar por descuento"
-            >
-              <TrendingDown className="h-3.5 w-3.5 md:mr-1.5" />
-              <span className="hidden md:inline">Dcto</span>
-            </Button>
-          </div>
-
-          {/* Province filter */}
-          <div className="relative">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-            <select
-              value={provinciaFiltro}
-              onChange={(e) => setProvincia(e.target.value)}
-              className="w-full sm:w-auto h-11 pl-9 pr-8 rounded-md border border-border/50 bg-card/50 text-sm appearance-none cursor-pointer hover:border-primary/30 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              <option value="">Todas las provincias</option>
-              {provincias.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-            {provinciaFiltro && (
-              <button
-                onClick={() => setProvincia("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
-          </div>
+      <section
+        id="como-funciona"
+        className="mx-auto max-w-7xl px-4 py-16 md:px-6 md:py-24"
+      >
+        <div className="flex flex-col gap-4 md:max-w-3xl">
+          <span className="editorial-label">Cómo funciona</span>
+          <h2 className="font-heading text-4xl leading-tight tracking-[-0.05em] text-foreground md:text-6xl">
+            Un flujo pensado para pasar del expediente al criterio inversor sin
+            fricción.
+          </h2>
         </div>
 
-        {/* Active filters info */}
-        {activeFilters > 0 && !loading && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>
-              {filtradas.length} resultado{filtradas.length !== 1 ? "s" : ""}
-            </span>
-            {provinciaFiltro && (
-              <Badge
-                variant="secondary"
-                className="text-[9px] gap-1 cursor-pointer hover:bg-destructive/10"
-                onClick={() => setProvincia("")}
-              >
-                <MapPin className="h-2.5 w-2.5" />
-                {provinciaFiltro}
-                <X className="h-2 w-2" />
-              </Badge>
-            )}
-            {busqueda && (
-              <Badge
-                variant="secondary"
-                className="text-[9px] gap-1 cursor-pointer hover:bg-destructive/10"
-                onClick={() => setBusqueda("")}
-              >
-                <Search className="h-2.5 w-2.5" />
-                &quot;{busqueda}&quot;
-                <X className="h-2 w-2" />
-              </Badge>
-            )}
-            <button
-              onClick={() => { updateParams({ q: null, provincia: null, page: null }); setRecFiltro(""); setSoloFavoritos(false); }}
-              className="text-[10px] text-primary hover:underline ml-1"
-            >
-              Limpiar filtros
-            </button>
-          </div>
-        )}
+        <div className="mt-8 grid gap-4 lg:grid-cols-3">
+          {workflow.map((item) => (
+            <article key={item.step} className="paper-panel rounded-[30px] p-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+                {item.step}
+              </p>
+              <h3 className="mt-4 font-heading text-3xl tracking-[-0.04em] text-foreground">
+                {item.title}
+              </h3>
+              <p className="mt-4 text-base leading-7 text-muted-foreground">
+                {item.body}
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
 
-        {/* Recommendation filter pills */}
-        {Object.keys(analyses).length > 0 && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-muted-foreground mr-1">Filtrar:</span>
-            {([
-              { key: "comprar", label: "Comprar", icon: CheckCircle, color: "emerald" },
-              { key: "observar", label: "Observar", icon: Eye, color: "amber" },
-              { key: "descartar", label: "Descartar", icon: XCircle, color: "red" },
-            ] as const).map(({ key, label, icon: Icon, color }) => (
-              <button
-                key={key}
-                onClick={() => { setRecFiltro(recFiltro === key ? "" : key); updateParams({ page: null }); }}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] font-semibold transition-colors ${
-                  recFiltro === key
-                    ? `bg-${color}-500/20 text-${color}-400 border-${color}-500/40`
-                    : "border-border/50 text-muted-foreground hover:border-border"
-                }`}
-              >
-                <Icon className="h-2.5 w-2.5" />
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Empty / Loading states */}
-        {loading && (
-          <div className="space-y-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-lg border border-border/50 bg-card/50 p-4 animate-pulse">
-                <div className="h-4 w-32 bg-muted/40 rounded mb-2" />
-                <div className="h-3 w-48 bg-muted/30 rounded mb-3" />
-                <div className="flex gap-4">
-                  <div className="h-3 w-20 bg-muted/30 rounded" />
-                  <div className="h-3 w-16 bg-muted/30 rounded" />
+      <section
+        id="producto"
+        className="mx-auto grid max-w-7xl gap-5 px-4 pb-16 md:px-6 lg:grid-cols-[0.78fr_1.22fr]"
+      >
+        <div className="paper-panel rounded-[32px] p-6 md:p-7">
+          <span className="editorial-label">Producto</span>
+          <h2 className="mt-4 font-heading text-4xl leading-tight tracking-[-0.05em] text-foreground md:text-5xl">
+            Una interfaz pública impecable y un backoffice listo para operar.
+          </h2>
+          <p className="mt-4 text-base leading-7 text-muted-foreground">
+            La experiencia combina la calma de una publicación premium con la
+            densidad útil de un terminal de análisis. Nada suena a SaaS
+            genérico; todo empuja a una lectura más rápida y más informada.
+          </p>
+          <div className="soft-divider mt-8" />
+          <div className="mt-8 space-y-4">
+            {[
+              {
+                icon: HeartHandshake,
+                text: "Una landing que transmite confianza y posicionamiento claro.",
+              },
+              {
+                icon: TrendingUp,
+                text: "Un dashboard para detectar oportunidades y ejecutar seguimiento diario.",
+              },
+              {
+                icon: BookOpenText,
+                text: "Una vista de detalle que se comporta como expediente y memo de inversión.",
+              },
+            ].map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-start gap-3">
+                <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Icon className="h-4 w-4" />
                 </div>
+                <p className="text-sm leading-7 text-foreground">{text}</p>
               </div>
             ))}
           </div>
-        )}
+        </div>
 
-        {!loading && filtradas.length === 0 && (
-          <div className="flex flex-col items-center gap-4 py-20">
-            <div className="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center">
-              <Gavel className="h-7 w-7 text-primary/40" />
-            </div>
-            <div className="text-center">
-              <p className="font-medium">No hay subastas</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {activeFilters > 0 ? (
-                  <button
-                    onClick={() => updateParams({ q: null, provincia: null, page: null })}
-                    className="text-primary hover:underline font-semibold"
-                  >
-                    Limpiar filtros
-                  </button>
-                ) : (
-                  <>
-                    Pulsa{" "}
-                    <button
-                      onClick={() => setShowScrape(true)}
-                      className="text-primary hover:underline font-semibold"
-                    >
-                      Scrapear BOE
-                    </button>{" "}
-                    para descargar datos
-                  </>
-                )}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {features.map(({ icon: Icon, title, body }) => (
+            <article key={title} className="paper-panel rounded-[28px] p-5">
+              <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-primary/10 text-primary">
+                <Icon className="h-5 w-5" />
+              </div>
+              <h3 className="mt-5 font-heading text-2xl tracking-[-0.04em] text-foreground">
+                {title}
+              </h3>
+              <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                {body}
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section
+        id="caso"
+        className="mx-auto max-w-7xl px-4 pb-16 md:px-6 md:pb-24"
+      >
+        <div className="paper-panel-strong rounded-[34px] p-6 md:p-8">
+          <div className="grid gap-8 lg:grid-cols-[0.82fr_1.18fr]">
+            <div>
+              <span className="editorial-label">Caso de uso</span>
+              <h2 className="mt-4 font-heading text-4xl leading-tight tracking-[-0.05em] text-foreground md:text-5xl">
+                Cada expediente termina convertido en una tesis legible.
+              </h2>
+              <p className="mt-4 text-base leading-7 text-muted-foreground">
+                El rediseño pone foco en lectura, criterio y confianza. La vista
+                ya no parece un listado táctico sin alma, sino un sistema serio
+                para trabajar oportunidades judiciales.
               </p>
             </div>
-          </div>
-        )}
 
-        {/* Mobile Card Layout */}
-        {!loading && paginadas.length > 0 && (
-          <div className="md:hidden space-y-2">
-            {paginadas.map((s) => {
-              const days = daysUntil(s.fechaConclusion);
-              const analysis = analyses[s.id];
-              const isVivienda = s.tipoBienDetalle?.toLowerCase().includes("vivienda");
-              return (
-                <div key={s.id} className="rounded-lg border border-border/50 bg-card/50 p-3.5 transition-colors relative">
-                  <button
-                    onClick={(e) => { e.preventDefault(); toggleFavorito(s.id); }}
-                    className="absolute top-3 right-3 p-1 z-10"
-                  >
-                    <Star className={`h-4 w-4 ${favoritos.has(s.id) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`} />
-                  </button>
-                <Link
-                  href={`/subastas/${encodeURIComponent(s.id)}`}
-                  className="block active:bg-primary/[0.05]"
-                >
-                  <div className="flex items-start justify-between gap-2 mb-1.5 pr-6">
-                    <Badge variant="secondary" className="text-[9px] font-semibold tracking-wide shrink-0">
-                      {isVivienda && <Home className="h-2.5 w-2.5 mr-1" />}
-                      {s.tipoBienDetalle || "—"}
-                    </Badge>
-                    <div className="flex items-center gap-2">
-                      {analysis && <ScorePill score={analysis.oportunidad} />}
-                      {days !== null && <DaysLeftBadge days={days} />}
-                    </div>
-                  </div>
-                  <p className="text-sm font-medium line-clamp-2 mb-1.5">
-                    {s.descripcion || "Sin descripción"}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">
-                      {s.localidad || "—"}{s.provincia ? `, ${s.provincia}` : ""}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <DescuentoBadge descuento={calcDescuento(s.valorSubasta, s.tasacion)} />
-                      <span className="font-mono text-sm font-semibold tabular-nums text-primary">
-                        {formatCurrency(s.valorSubasta)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 mt-1.5">
-                    {s.pujActual && (
-                      <span className="text-[10px] font-semibold text-amber-400">
-                        Puja: {formatCurrency(s.pujActual)}
-                      </span>
-                    )}
-                    {s.documentos && s.documentos.length > 0 && (
-                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <FileText className="h-3 w-3" />
-                        {s.documentos.length} doc{s.documentos.length > 1 ? "s" : ""}
-                      </span>
-                    )}
-                  </div>
-                </Link>
+            <div className="rounded-[30px] border border-border/70 bg-background/78 p-4 md:p-5">
+              <div className="overflow-hidden rounded-[24px] border border-border/80">
+                <div className="grid grid-cols-[1.1fr_1.8fr_0.9fr_0.7fr_0.9fr] gap-3 border-b border-border/80 bg-card px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  <span>Tipo</span>
+                  <span>Descripción</span>
+                  <span>Ubicación</span>
+                  <span>Score</span>
+                  <span>Estado</span>
                 </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Desktop Table */}
-        {!loading && paginadas.length > 0 && (
-          <div className="hidden md:block rounded-lg border border-border/50 overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border/50 bg-card/30">
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Tipo</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Descripción</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Ubicación</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">Valor</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">Tasación</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">Dcto</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">Puja</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">Cierre</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">IA</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">Docs</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase w-8"></TableHead>
-                  <TableHead className="w-8"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginadas.map((s) => {
-                  const days = daysUntil(s.fechaConclusion);
-                  const analysis = analyses[s.id];
-                  const isVivienda = s.tipoBienDetalle?.toLowerCase().includes("vivienda");
-                  return (
-                    <TableRow key={s.id} className="border-border/30 hover:bg-primary/[0.03] transition-colors group">
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <Badge variant="secondary" className="text-[9px] font-semibold tracking-wide w-fit">
-                            {isVivienda && <Home className="h-2.5 w-2.5 mr-1" />}
-                            {s.tipoBienDetalle || "—"}
-                          </Badge>
-                          <span className="text-[9px] text-muted-foreground/60 font-mono">
-                            {s.id.length > 20 ? s.id.substring(0, 20) + "…" : s.id}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-[250px]">
-                        <Link href={`/subastas/${encodeURIComponent(s.id)}`} className="hover:text-primary transition-colors">
-                          <p className="truncate text-sm font-medium">{s.descripcion || "Sin descripción"}</p>
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="text-xs">{s.localidad || "—"}</span>
-                          <span className="text-[10px] text-muted-foreground">{s.provincia || ""}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">{formatCurrency(s.valorSubasta)}</TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">{formatCurrency(s.tasacion)}</TableCell>
-                      <TableCell className="text-center"><DescuentoBadge descuento={calcDescuento(s.valorSubasta, s.tasacion)} /></TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        {s.pujActual ? <span className="text-amber-400 font-semibold">{formatCurrency(s.pujActual)}</span> : <span className="text-muted-foreground/30">—</span>}
-                      </TableCell>
-                      <TableCell className="text-center">{days !== null ? <DaysLeftBadge days={days} /> : "—"}</TableCell>
-                      <TableCell className="text-center">
-                        {analysis ? (
-                          <Link href={`/subastas/${encodeURIComponent(s.id)}`}><ScorePill score={analysis.oportunidad} /></Link>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground/30">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {s.documentos && s.documentos.length > 0 ? (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                            <FileText className="h-3 w-3" />{s.documentos.length}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground/30">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <a href={s.url} target="_blank" rel="noopener noreferrer" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
-                        </a>
-                      </TableCell>
-                      <TableCell>
-                        <button onClick={() => toggleFavorito(s.id)} className="p-0.5">
-                          <Star className={`h-3.5 w-3.5 transition-colors ${favoritos.has(s.id) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/20 hover:text-amber-400/50"}`} />
-                        </button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-
-        {/* Pagination */}
-        {!loading && filtradas.length > PAGE_SIZE && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
-              {(paginaReal - 1) * PAGE_SIZE + 1}–
-              {Math.min(paginaReal * PAGE_SIZE, filtradas.length)} de{" "}
-              <span className="font-semibold text-foreground">
-                {filtradas.length}
-              </span>{" "}
-              subastas
-            </p>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 md:h-8 md:w-8"
-                disabled={paginaReal <= 1}
-                onClick={() => setPagina(1)}
-              >
-                <ChevronsLeft className="h-4 w-4 md:h-3.5 md:w-3.5" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 md:h-8 md:w-8"
-                disabled={paginaReal <= 1}
-                onClick={() => setPagina((p) => Math.max(1, p - 1))}
-              >
-                <ChevronLeft className="h-4 w-4 md:h-3.5 md:w-3.5" />
-              </Button>
-
-              {/* Page numbers - fewer on mobile */}
-              {Array.from({ length: Math.min(totalPaginas <= 3 ? totalPaginas : 3, totalPaginas) }).map((_, i) => {
-                let p: number;
-                const maxVisible = totalPaginas <= 3 ? totalPaginas : 3;
-                if (totalPaginas <= maxVisible) {
-                  p = i + 1;
-                } else if (paginaReal <= 2) {
-                  p = i + 1;
-                } else if (paginaReal >= totalPaginas - 1) {
-                  p = totalPaginas - maxVisible + 1 + i;
-                } else {
-                  p = paginaReal - 1 + i;
-                }
-                return (
-                  <Button
-                    key={p}
-                    variant={p === paginaReal ? "default" : "outline"}
-                    size="icon"
-                    className="h-9 w-9 md:h-8 md:w-8 text-xs"
-                    onClick={() => setPagina(p)}
-                  >
-                    {p}
-                  </Button>
-                );
-              })}
-
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 md:h-8 md:w-8"
-                disabled={paginaReal >= totalPaginas}
-                onClick={() =>
-                  setPagina((p) => Math.min(totalPaginas, p + 1))
-                }
-              >
-                <ChevronRight className="h-4 w-4 md:h-3.5 md:w-3.5" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 md:h-8 md:w-8"
-                disabled={paginaReal >= totalPaginas}
-                onClick={() => setPagina(totalPaginas)}
-              >
-                <ChevronsRight className="h-4 w-4 md:h-3.5 md:w-3.5" />
-              </Button>
+                <div className="divide-y divide-border/80 bg-[rgba(255,255,255,0.68)]">
+                  {dashboardPreviewRows.map((row) => (
+                    <div
+                      key={row.description}
+                      className="grid grid-cols-[1.1fr_1.8fr_0.9fr_0.7fr_0.9fr] gap-3 px-4 py-4 text-sm text-foreground"
+                    >
+                      <span className="font-medium">{row.type}</span>
+                      <div>
+                        <p className="font-medium">{row.description}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {row.value}
+                        </p>
+                      </div>
+                      <span className="text-muted-foreground">{row.location}</span>
+                      <span className="font-heading text-2xl leading-none">
+                        {row.score}
+                      </span>
+                      <PreviewStatus
+                        label={row.status}
+                        tone={
+                          row.status === "Comprar"
+                            ? "positive"
+                            : row.status === "Observar"
+                              ? "neutral"
+                              : "negative"
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
-        )}
-
-        {/* Footer */}
-        <p className="text-center text-[10px] text-muted-foreground/50 tracking-wider uppercase pb-4">
-          Datos públicos de subastas.boe.es — Persistidos en MongoDB
-        </p>
-      </div>
-
-      {showScrape && (
-        <ScrapeDialog
-          onClose={() => setShowScrape(false)}
-          onComplete={(nuevas) => {
-            addSubastas(nuevas);
-            setShowScrape(false);
-          }}
-        />
-      )}
-
-      {/* Settings Panel */}
-      {showSettings && (
-        <SettingsPanel
-          onClose={() => setShowSettings(false)}
-          sessionActive={sessionActive}
-          onSessionUpdate={() => checkSession()}
-          onScrapeOpen={() => { setShowSettings(false); setShowScrape(true); }}
-        />
-      )}
-    </main>
-  );
-}
-
-function SettingsPanel({
-  onClose,
-  sessionActive,
-  onSessionUpdate,
-  onScrapeOpen,
-}: {
-  onClose: () => void;
-  sessionActive: boolean | null;
-  onSessionUpdate: () => void;
-  onScrapeOpen: () => void;
-}) {
-  const [sessId, setSessId] = useState("");
-  const [simpleSaml, setSimpleSaml] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  const handleSaveSession = async () => {
-    if (!sessId.trim() && !simpleSaml.trim()) return;
-    setSaving(true);
-    try {
-      await fetch("/api/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessId: sessId.trim() || undefined,
-          simpleSaml: simpleSaml.trim() || undefined,
-        }),
-      });
-      setSaved(true);
-      onSessionUpdate();
-      setTimeout(() => setSaved(false), 2000);
-    } catch {
-      // ignore
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
-      <div className="w-full max-w-md mx-4 rounded-xl border border-border/50 bg-card shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-              <Settings className="h-4 w-4 text-primary" />
-            </div>
-            <h2 className="font-bold text-sm">Ajustes</h2>
-          </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
-            <X className="h-4 w-4" />
-          </Button>
         </div>
+      </section>
 
-        <div className="px-5 py-5 space-y-5">
-          {/* Session status */}
-          <div className="space-y-3">
-            <label className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase flex items-center gap-1.5">
-              <KeyRound className="h-3 w-3" />
-              Sesión BOE
-            </label>
-            <div className="flex items-center gap-2 p-3 rounded-md border border-border/50 bg-card/50">
-              {sessionActive ? (
-                <>
-                  <div className="h-2.5 w-2.5 rounded-full bg-emerald-400 shrink-0" />
-                  <span className="text-sm text-emerald-400 font-medium">Sesión activa</span>
-                </>
-              ) : (
-                <>
-                  <div className="h-2.5 w-2.5 rounded-full bg-red-400 shrink-0" />
-                  <span className="text-sm text-red-400 font-medium">Sin sesión o expirada</span>
-                </>
-              )}
+      <section className="mx-auto max-w-7xl px-4 pb-20 md:px-6">
+        <div className="paper-panel rounded-[36px] px-6 py-8 md:px-10 md:py-10">
+          <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div>
+              <span className="editorial-label">Cierre</span>
+              <h2 className="mt-4 font-heading text-4xl leading-tight tracking-[-0.05em] text-foreground md:text-5xl">
+                Una nueva primera impresión y un producto operativo mucho más
+                sólido.
+              </h2>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
+                La remodelación propone una web pública que vende confianza y un
+                dashboard que transmite rigor analítico desde el primer vistazo.
+              </p>
             </div>
-            <div className="space-y-2">
-              <Input
-                placeholder="SESSID"
-                value={sessId}
-                onChange={(e) => setSessId(e.target.value)}
-                className="h-10 text-sm font-mono"
-              />
-              <Input
-                placeholder="SimpleSAML"
-                value={simpleSaml}
-                onChange={(e) => setSimpleSaml(e.target.value)}
-                className="h-10 text-sm font-mono"
-              />
-              <Button
-                onClick={handleSaveSession}
-                disabled={(!sessId.trim() && !simpleSaml.trim()) || saving}
-                className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                {saved ? "Guardadas" : saving ? "Guardando..." : "Actualizar cookies"}
-              </Button>
-            </div>
-            <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Loguéate en subastas.boe.es con Cl@ve, abre DevTools → Application → Cookies y copia SESSID y SimpleSAML.
-            </p>
-          </div>
-
-          {/* Scraping */}
-          <div className="space-y-3 pt-2 border-t border-border/50">
-            <label className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase flex items-center gap-1.5">
-              <Download className="h-3 w-3" />
-              Scraping
-            </label>
-            <Button
-              variant="outline"
-              onClick={onScrapeOpen}
-              className="w-full h-10"
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-[0_18px_40px_rgba(154,91,49,0.18)] transition-all hover:-translate-y-0.5"
             >
-              <Download className="h-4 w-4 mr-2" />
-              Configurar y scrapear BOE
-            </Button>
+              Entrar ahora
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
           </div>
         </div>
-      </div>
-    </div>
+      </section>
+
+      <footer className="border-t border-border/60 bg-background/76">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between md:px-6">
+          <p>Subasta. Rediseño editorial para inteligencia de subastas judiciales.</p>
+          <div className="flex items-center gap-4">
+            <a href="#como-funciona" className="hover:text-foreground">
+              Método
+            </a>
+            <Link href="/dashboard" className="hover:text-foreground">
+              Dashboard
+            </Link>
+          </div>
+        </div>
+      </footer>
+    </main>
   );
 }
