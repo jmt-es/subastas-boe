@@ -1,46 +1,44 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback, Suspense } from "react";
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useCallback,
+  Suspense,
+  type ElementType,
+  type ReactNode,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Search,
-  Download,
-  Gavel,
-  TrendingUp,
-  Clock,
-  MapPin,
-  ExternalLink,
+  Brain,
+  CheckCircle,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Brain,
-  FileText,
-  Home,
+  Clock,
+  Download,
+  ExternalLink,
+  Eye,
   Filter,
-  X,
-  RefreshCw,
-  Settings,
+  Home,
   KeyRound,
+  RefreshCw,
+  Search,
+  Settings,
+  ShieldAlert,
   Star,
   TrendingDown,
-  CheckCircle,
-  Eye,
+  X,
   XCircle,
 } from "lucide-react";
-import Link from "next/link";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ScrapeDialog } from "@/components/scrape-dialog";
+import type { Subasta } from "@/lib/scraper";
 import { useSubastas } from "@/lib/use-subastas";
 import type { AnalysisResult } from "@/lib/storage";
 
@@ -80,18 +78,12 @@ function calcDescuento(valorSubasta?: string, tasacion?: string): number | null 
   return Math.round((1 - v / t) * 100);
 }
 
-function DescuentoBadge({ descuento }: { descuento: number | null }) {
-  if (descuento === null) return <span className="text-[10px] text-muted-foreground/30">—</span>;
-  const color = descuento >= 40 ? "text-emerald-400" : descuento >= 20 ? "text-amber-400" : "text-red-400";
-  return <span className={`text-[10px] font-bold tabular-nums ${color}`}>{descuento > 0 ? `-${descuento}%` : `+${Math.abs(descuento)}%`}</span>;
-}
-
 function parseDate(d?: string): Date | null {
   if (!d) return null;
   const m = d.match(/(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
   if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:${m[6]}`);
   const iso = new Date(d);
-  return isNaN(iso.getTime()) ? null : iso;
+  return Number.isNaN(iso.getTime()) ? null : iso;
 }
 
 function daysUntil(d?: string): number | null {
@@ -100,34 +92,324 @@ function daysUntil(d?: string): number | null {
   return Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
+function recommendationLabel(value?: string) {
+  if (value === "comprar") return "Comprar";
+  if (value === "observar") return "Observar";
+  if (value === "descartar") return "Descartar";
+  return "Pendiente";
+}
+
+function recommendationClasses(value?: string) {
+  if (value === "comprar") {
+    return "border-[#e5be74]/30 bg-[#e5be74]/10 text-[#e5be74]";
+  }
+  if (value === "observar") {
+    return "border-primary/25 bg-primary/10 text-primary";
+  }
+  if (value === "descartar") {
+    return "border-[#ffb4ab]/30 bg-[#ffb4ab]/10 text-[#ffb4ab]";
+  }
+  return "border-border bg-card text-muted-foreground";
+}
+
+function provinceLabel(value?: string) {
+  if (!value) return "";
+  return value.split("/")[0]?.trim() || value;
+}
+
+function normalizeText(value?: string) {
+  return value?.replace(/\s+/g, " ").trim() || "";
+}
+
+function inferAssetLabel(subasta: Subasta) {
+  const source = `${subasta.tipoBienDetalle || ""} ${subasta.descripcion || ""}`.toLowerCase();
+
+  if (source.includes("aparcamiento") || source.includes("garaje") || source.includes("parking")) {
+    return "Plaza de aparcamiento";
+  }
+  if (
+    source.includes("vivienda") ||
+    source.includes("piso") ||
+    source.includes("apartamento") ||
+    source.includes("casa") ||
+    source.includes("chalet")
+  ) {
+    return "Vivienda";
+  }
+  if (source.includes("local")) return "Local comercial";
+  if (source.includes("nave")) return "Nave industrial";
+  if (source.includes("solar") || source.includes("terreno") || source.includes("parcela")) {
+    return "Solar";
+  }
+  if (source.includes("oficina")) return "Oficina";
+
+  const customType = normalizeText(subasta.tipoBienDetalle);
+  return customType || "Activo judicial";
+}
+
+function displayTitle(subasta: Subasta) {
+  const asset = inferAssetLabel(subasta);
+  const place = subasta.localidad || provinceLabel(subasta.provincia);
+  return place ? `${asset} en ${place}` : asset;
+}
+
+function displayMeta(subasta: Subasta) {
+  return [
+    subasta.direccion ? normalizeText(subasta.direccion).split(",").slice(0, 2).join(", ") : "",
+    subasta.localidad,
+    provinceLabel(subasta.provincia),
+    normalizeText(subasta.tipoSubasta),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function descriptionExcerpt(subasta: Subasta, maxLength = 210) {
+  const description = normalizeText(subasta.descripcion);
+  if (!description) return "Expediente pendiente de descripcion legible en origen.";
+  if (description.length <= maxLength) return description;
+  return `${description.slice(0, maxLength).trimEnd()}...`;
+}
+
 function ScorePill({ score }: { score: number }) {
-  const bg =
-    score >= 70
-      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-      : score >= 40
-        ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
-        : "bg-red-500/15 text-red-400 border-red-500/30";
   return (
-    <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold tabular-nums ${bg}`}
-    >
-      <Brain className="h-2.5 w-2.5" />
+    <span className="inline-flex items-center gap-2 border border-primary/15 bg-primary/10 px-2.5 py-1 font-mono text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-primary">
+      <Brain className="h-3 w-3" />
       {score}
     </span>
   );
 }
 
-function DaysLeftBadge({ days }: { days: number }) {
-  const color =
-    days <= 3
-      ? "text-red-400"
-      : days <= 7
-        ? "text-amber-400"
-        : "text-muted-foreground";
+function DiscountPill({ descuento }: { descuento: number | null }) {
+  if (descuento === null) {
+    return (
+      <span className="font-mono text-[0.66rem] uppercase tracking-[0.16em] text-muted-foreground">
+        —
+      </span>
+    );
+  }
+
+  const classes =
+    descuento >= 40
+      ? "text-[#9dd7b9]"
+      : descuento >= 20
+        ? "text-[#e5be74]"
+        : "text-[#ffb4ab]";
+
   return (
-    <span className={`text-[10px] font-semibold tabular-nums ${color}`}>
-      {days <= 0 ? "Finalizada" : `${days}d`}
+    <span className={`font-mono text-[0.7rem] font-semibold uppercase tracking-[0.14em] ${classes}`}>
+      {descuento > 0 ? `-${descuento}%` : `+${Math.abs(descuento)}%`}
     </span>
+  );
+}
+
+function DaysLeftBadge({ days }: { days: number | null }) {
+  if (days === null) {
+    return (
+      <span className="font-mono text-[0.66rem] uppercase tracking-[0.16em] text-muted-foreground">
+        —
+      </span>
+    );
+  }
+
+  const classes =
+    days <= 3
+      ? "text-[#ffb4ab]"
+      : days <= 7
+        ? "text-[#e5be74]"
+        : "text-muted-foreground";
+
+  return (
+    <span className={`font-mono text-[0.66rem] uppercase tracking-[0.16em] ${classes}`}>
+      {days <= 0 ? "Cerrada" : `${days}d`}
+    </span>
+  );
+}
+
+function OverviewStat({
+  label,
+  value,
+  hint,
+  accent = "text-primary",
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  accent?: string;
+}) {
+  return (
+    <div className="war-panel-muted p-4 md:p-5">
+      <p className="tech-label">{label}</p>
+      <p className={`mt-3 font-mono text-3xl font-semibold tracking-[-0.06em] md:text-4xl ${accent}`}>
+        {value}
+      </p>
+      {hint && <p className="mt-2 text-xs leading-6 text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function AuctionCard({
+  subasta,
+  analysis,
+  isFavorite,
+  onToggleFavorite,
+}: {
+  subasta: Subasta;
+  analysis?: AnalysisResult;
+  isFavorite: boolean;
+  onToggleFavorite: (id: string) => void;
+}) {
+  const days = daysUntil(subasta.fechaConclusion);
+  const descuento = calcDescuento(subasta.valorSubasta, subasta.tasacion);
+
+  return (
+    <article className="war-panel-muted overflow-hidden p-5 md:p-6">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="signal-chip text-primary">{inferAssetLabel(subasta)}</span>
+            <span className="font-mono text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground">
+              {subasta.id}
+            </span>
+            {analysis && <ScorePill score={analysis.oportunidad} />}
+            <span
+              className={`inline-flex items-center border px-2.5 py-1 font-mono text-[0.62rem] uppercase tracking-[0.18em] ${recommendationClasses(
+                analysis?.recomendacion
+              )}`}
+            >
+              {recommendationLabel(analysis?.recomendacion)}
+            </span>
+          </div>
+
+          <Link
+            href={`/subastas/${encodeURIComponent(subasta.id)}`}
+            className="mt-5 block font-heading text-3xl leading-[0.95] tracking-[-0.05em] transition-colors hover:text-primary md:text-4xl"
+          >
+            {displayTitle(subasta)}
+          </Link>
+
+          <p className="mt-3 text-sm leading-7 text-muted-foreground">{displayMeta(subasta)}</p>
+          <p className="mt-4 max-w-3xl text-sm leading-7 text-foreground/90 md:text-[0.95rem]">
+            {descriptionExcerpt(subasta)}
+          </p>
+        </div>
+
+        <div className="grid w-full gap-3 sm:grid-cols-2 xl:w-[430px]">
+          <div className="glass-panel p-4">
+            <p className="tech-label">Valor subasta</p>
+            <p className="mt-3 font-mono text-lg text-foreground md:text-xl">
+              {formatCurrency(subasta.valorSubasta)}
+            </p>
+            <p className="mt-2 font-mono text-[0.64rem] uppercase tracking-[0.16em] text-muted-foreground">
+              Tasacion {formatCurrency(subasta.tasacion)}
+            </p>
+          </div>
+          <div className="glass-panel p-4">
+            <p className="tech-label">Oportunidad</p>
+            <div className="mt-3 flex items-center gap-3">
+              <DiscountPill descuento={descuento} />
+              <DaysLeftBadge days={days} />
+            </div>
+            {subasta.pujActual && (
+              <p className="mt-2 font-mono text-[0.64rem] uppercase tracking-[0.16em] text-primary">
+                Puja {formatCurrency(subasta.pujActual)}
+              </p>
+            )}
+          </div>
+          <div className="glass-panel p-4">
+            <p className="tech-label">Documentacion</p>
+            <p className="mt-3 font-mono text-lg text-[#e5be74] md:text-xl">
+              {subasta.documentos?.length || 0}
+            </p>
+            <p className="mt-2 text-xs leading-6 text-muted-foreground">
+              Enlaces BOE listos para abrir desde el expediente.
+            </p>
+          </div>
+          <div className="glass-panel p-4">
+            <p className="tech-label">Lectura IA</p>
+            {analysis ? (
+              <>
+                <p className="mt-3 font-mono text-lg text-primary md:text-xl">
+                  {analysis.oportunidad}/100
+                </p>
+                <p className="mt-2 text-xs leading-6 text-muted-foreground">
+                  {recommendationLabel(analysis.recomendacion)}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="mt-3 font-mono text-lg text-muted-foreground md:text-xl">Pendiente</p>
+                <p className="mt-2 text-xs leading-6 text-muted-foreground">
+                  Disponible al abrir el dossier y lanzar analisis.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border/30 pt-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-border/70 px-3 py-1 font-mono text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground">
+            {subasta.localidad || "Localidad pendiente"}
+          </span>
+          {subasta.estado && (
+            <span className="rounded-full border border-primary/15 bg-primary/10 px-3 py-1 font-mono text-[0.62rem] uppercase tracking-[0.16em] text-primary">
+              {subasta.estado}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <a
+            href={subasta.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-border bg-card px-4 font-mono text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground transition-colors hover:text-primary"
+          >
+            <ExternalLink className="h-4 w-4" />
+            BOE
+          </a>
+          <Link
+            href={`/subastas/${encodeURIComponent(subasta.id)}`}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-primary/20 bg-primary px-4 font-mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-primary-foreground transition-colors hover:bg-[#e5be74]"
+          >
+            Abrir dossier
+          </Link>
+          <button
+            onClick={() => onToggleFavorite(subasta.id)}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:text-[#e5be74]"
+            aria-label={isFavorite ? "Quitar de favoritos" : "Guardar en favoritos"}
+          >
+            <Star className={`h-4 w-4 ${isFavorite ? "fill-[#e5be74] text-[#e5be74]" : ""}`} />
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function RailCard({
+  title,
+  tone = "primary",
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  tone?: "primary" | "gold";
+  icon: ElementType;
+  children: ReactNode;
+}) {
+  const toneClass = tone === "gold" ? "text-[#e5be74]" : "text-primary";
+
+  return (
+    <section className="war-panel p-5 md:p-6">
+      <div className={`flex items-center justify-between gap-3 ${toneClass}`}>
+        <p className="tech-label text-current">{title}</p>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="mt-4">{children}</div>
+    </section>
   );
 }
 
@@ -142,77 +424,52 @@ export default function Dashboard() {
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
   const { subastas, loading, addSubastas, refetch } = useSubastas();
+
   const [showScrape, setShowScrape] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [analyses, setAnalyses] = useState<Record<string, AnalysisResult>>({});
   const [ordenarPorIA, setOrdenarPorIA] = useState(false);
   const [ordenarPorDescuento, setOrdenarPorDescuento] = useState(false);
-  const [recFiltro, setRecFiltro] = useState<string>("");
+  const [recFiltro, setRecFiltro] = useState("");
+  const [soloFavoritos, setSoloFavoritos] = useState(false);
+  const [sessionActive, setSessionActive] = useState<boolean | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [nowTs, setNowTs] = useState(() => Date.now());
   const [favoritos, setFavoritos] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
-    try { return new Set(JSON.parse(localStorage.getItem("subastas-favoritos") || "[]")); } catch { return new Set(); }
+    try {
+      return new Set(JSON.parse(localStorage.getItem("subastas-favoritos") || "[]"));
+    } catch {
+      return new Set();
+    }
   });
-  const [soloFavoritos, setSoloFavoritos] = useState(false);
-  const [nowTs, setNowTs] = useState(() => Date.now());
 
   const toggleFavorito = useCallback((id: string) => {
-    setFavoritos(prev => {
+    setFavoritos((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       localStorage.setItem("subastas-favoritos", JSON.stringify([...next]));
       return next;
     });
   }, []);
-  const [sessionActive, setSessionActive] = useState<boolean | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
 
-  // Check BOE session status
-  const checkSession = useCallback(async () => {
-    try {
-      const resp = await fetch("/api/session-check");
-      const data = await resp.json();
-      setSessionActive(data.active ?? false);
-    } catch {
-      setSessionActive(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      void checkSession();
-    });
-    // Re-check every 60s
-    const interval = setInterval(checkSession, 60_000);
-    return () => clearInterval(interval);
-  }, [checkSession]);
-
-  useEffect(() => {
-    const interval = setInterval(() => setNowTs(Date.now()), 60_000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Read state from URL
   const pagina = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
   const busqueda = searchParams.get("q") || "";
   const provinciaFiltro = searchParams.get("provincia") || "";
 
-  // Helper to update URL params
   const updateParams = useCallback(
     (updates: Record<string, string | null>) => {
       const params = new URLSearchParams(searchParams.toString());
       for (const [key, val] of Object.entries(updates)) {
-        if (val === null || val === "") {
-          params.delete(key);
-        } else {
-          params.set(key, val);
-        }
+        if (!val) params.delete(key);
+        else params.set(key, val);
       }
       const qs = params.toString();
       router.push(qs ? `/dashboard?${qs}` : "/dashboard", { scroll: false });
     },
-    [searchParams, router]
+    [router, searchParams]
   );
 
   const setPagina = useCallback(
@@ -237,15 +494,24 @@ function DashboardContent() {
     [updateParams]
   );
 
-  // Load all analyses from MongoDB
+  const checkSession = useCallback(async () => {
+    try {
+      const resp = await fetch("/api/session-check");
+      const data = await resp.json();
+      setSessionActive(data.active ?? false);
+    } catch {
+      setSessionActive(false);
+    }
+  }, []);
+
   const fetchAnalyses = useCallback(async () => {
     try {
       const resp = await fetch("/api/analysis?all=1");
       const data = await resp.json();
       if (Array.isArray(data)) {
-        const map: Record<string, AnalysisResult> = {};
-        for (const a of data) map[a.subastaId] = a;
-        setAnalyses(map);
+        const next: Record<string, AnalysisResult> = {};
+        for (const analysis of data) next[analysis.subastaId] = analysis;
+        setAnalyses(next);
       }
     } catch {
       // ignore
@@ -254,9 +520,18 @@ function DashboardContent() {
 
   useEffect(() => {
     queueMicrotask(() => {
+      void checkSession();
       void fetchAnalyses();
     });
-  }, [fetchAnalyses]);
+
+    const sessionInterval = setInterval(checkSession, 60_000);
+    const clockInterval = setInterval(() => setNowTs(Date.now()), 60_000);
+
+    return () => {
+      clearInterval(sessionInterval);
+      clearInterval(clockInterval);
+    };
+  }, [checkSession, fetchAnalyses]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -264,36 +539,31 @@ function DashboardContent() {
     await fetchAnalyses();
     await checkSession();
     setRefreshing(false);
-  }, [refetch, fetchAnalyses, checkSession]);
+  }, [checkSession, fetchAnalyses, refetch]);
 
-  // Get unique provinces from data
   const provincias = useMemo(() => {
-    const set = new Set<string>();
-    for (const s of subastas) {
-      if (s.provincia) set.add(s.provincia);
+    const values = new Set<string>();
+    for (const subasta of subastas) {
+      if (subasta.provincia) values.add(subasta.provincia);
     }
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "es"));
+    return Array.from(values).sort((a, b) => a.localeCompare(b, "es"));
   }, [subastas]);
 
   const filtradas = useMemo(() => {
     let result = subastas;
 
-    // Favoritos filter
     if (soloFavoritos) {
       result = result.filter((s) => favoritos.has(s.id));
     }
 
-    // Province filter
     if (provinciaFiltro) {
       result = result.filter((s) => s.provincia === provinciaFiltro);
     }
 
-    // Recommendation filter
     if (recFiltro) {
       result = result.filter((s) => analyses[s.id]?.recomendacion === recFiltro);
     }
 
-    // Text search
     if (busqueda.trim()) {
       const q = busqueda.toLowerCase();
       result = result.filter(
@@ -307,54 +577,54 @@ function DashboardContent() {
       );
     }
 
-    // Sort
     if (ordenarPorIA) {
-      result = [...result].sort((a, b) => {
-        const scoreA = analyses[a.id]?.oportunidad ?? -1;
-        const scoreB = analyses[b.id]?.oportunidad ?? -1;
-        return scoreB - scoreA;
-      });
+      result = [...result].sort(
+        (a, b) => (analyses[b.id]?.oportunidad ?? -1) - (analyses[a.id]?.oportunidad ?? -1)
+      );
     } else if (ordenarPorDescuento) {
-      result = [...result].sort((a, b) => {
-        const dA = calcDescuento(a.valorSubasta, a.tasacion) ?? -999;
-        const dB = calcDescuento(b.valorSubasta, b.tasacion) ?? -999;
-        return dB - dA;
-      });
+      result = [...result].sort(
+        (a, b) =>
+          (calcDescuento(b.valorSubasta, b.tasacion) ?? -999) -
+          (calcDescuento(a.valorSubasta, a.tasacion) ?? -999)
+      );
     }
 
     return result;
-  }, [subastas, busqueda, provinciaFiltro, ordenarPorIA, ordenarPorDescuento, analyses, recFiltro, soloFavoritos, favoritos]);
+  }, [
+    analyses,
+    busqueda,
+    favoritos,
+    ordenarPorDescuento,
+    ordenarPorIA,
+    provinciaFiltro,
+    recFiltro,
+    soloFavoritos,
+    subastas,
+  ]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE));
-  // Clamp page if out of range
   const paginaReal = Math.min(pagina, totalPaginas);
-  const paginadas = filtradas.slice(
-    (paginaReal - 1) * PAGE_SIZE,
-    paginaReal * PAGE_SIZE
-  );
+  const paginadas = filtradas.slice((paginaReal - 1) * PAGE_SIZE, paginaReal * PAGE_SIZE);
 
   const stats = useMemo(() => {
     let activas = 0;
     let valorTotal = 0;
 
-    for (const s of subastas) {
-      const end = parseDate(s.fechaConclusion);
+    for (const subasta of subastas) {
+      const end = parseDate(subasta.fechaConclusion);
       if (end && end.getTime() > nowTs) activas++;
-      const num = parseFloat(
-        (s.valorSubasta || "0").replace(/[^\d,.-]/g, "").replace(",", ".")
-      );
-      if (!isNaN(num)) valorTotal += num;
+      const valor = parseNum(subasta.valorSubasta);
+      if (valor) valorTotal += valor;
     }
 
     return {
       total: subastas.length,
       activas,
       valorTotal,
-      provincias: new Set(subastas.map((s) => s.provincia).filter(Boolean))
-        .size,
+      provincias: new Set(subastas.map((item) => item.provincia).filter(Boolean)).size,
       analizadas: Object.keys(analyses).length,
     };
-  }, [subastas, analyses, nowTs]);
+  }, [analyses, nowTs, subastas]);
 
   const insightSummary = useMemo(() => {
     let comprar = 0;
@@ -374,664 +644,600 @@ function DashboardContent() {
       }
     }
 
-    const topSubasta = topId ? subastas.find((item) => item.id === topId) ?? null : null;
-
     return {
       comprar,
       observar,
       descartar,
       topScore: topScore > -1 ? topScore : null,
-      topSubasta,
+      topSubasta: topId ? subastas.find((item) => item.id === topId) ?? null : null,
     };
   }, [analyses, subastas]);
 
-  // Count active filters
-  const activeFilters = (busqueda ? 1 : 0) + (provinciaFiltro ? 1 : 0) + (recFiltro ? 1 : 0) + (soloFavoritos ? 1 : 0);
+  const shortlist = useMemo(() => {
+    return [...subastas]
+      .filter((subasta) => favoritos.has(subasta.id) || analyses[subasta.id])
+      .sort((a, b) => {
+        const favA = favoritos.has(a.id) ? 1 : 0;
+        const favB = favoritos.has(b.id) ? 1 : 0;
+        if (favA !== favB) return favB - favA;
+        return (analyses[b.id]?.oportunidad ?? -1) - (analyses[a.id]?.oportunidad ?? -1);
+      })
+      .slice(0, 4);
+  }, [analyses, favoritos, subastas]);
+
+  const upcomingClosures = useMemo(() => {
+    return [...filtradas]
+      .filter((subasta) => {
+        const days = daysUntil(subasta.fechaConclusion);
+        return days !== null && days > 0 && days <= 10;
+      })
+      .sort((a, b) => (daysUntil(a.fechaConclusion) ?? 99) - (daysUntil(b.fechaConclusion) ?? 99))
+      .slice(0, 4);
+  }, [filtradas]);
+
+  const activeFilters =
+    (busqueda ? 1 : 0) + (provinciaFiltro ? 1 : 0) + (recFiltro ? 1 : 0) + (soloFavoritos ? 1 : 0);
+
+  const recommendationOptions = [
+    { key: "comprar", label: "Comprar", icon: CheckCircle, value: insightSummary.comprar },
+    { key: "observar", label: "Observar", icon: Eye, value: insightSummary.observar },
+    { key: "descartar", label: "Descartar", icon: XCircle, value: insightSummary.descartar },
+  ] as const;
 
   return (
-    <main className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/86 backdrop-blur-xl">
-        <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-3 md:py-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 md:gap-4">
-              <Link
-                href="/"
-                className="w-9 h-9 md:w-10 md:h-10 rounded-[18px] bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 shadow-[0_10px_30px_rgba(180,83,9,0.12)]"
-              >
-                <Gavel className="h-4 w-4 md:h-5 md:w-5 text-primary" />
-              </Link>
+    <main className="min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-30 border-b border-border/50 bg-background/78 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-[1500px] flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6 xl:px-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-6">
+            <Link href="/" className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full border border-primary/15 bg-primary/10 text-primary">
+                <Home className="h-4 w-4" />
+              </div>
               <div>
-                <h1 className="font-heading text-2xl md:text-3xl tracking-[-0.04em] text-foreground">
+                <p className="font-heading text-3xl leading-none tracking-[-0.06em] text-primary">
                   Subasta
-                </h1>
-                <p className="text-[10px] md:text-xs text-muted-foreground tracking-[0.24em] uppercase hidden sm:block">
-                  Panel operativo BOE
+                </p>
+                <p className="tech-label mt-2 text-[0.58rem] text-primary/75">
+                  Radar operativo
                 </p>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/"
-                className="hidden rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/35 hover:text-primary md:inline-flex"
-              >
-                Ver landing
-              </Link>
-              {/* Session LED indicator */}
-              <button
-                onClick={() => setShowSettings(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-card/80 border border-border/50 hover:border-primary/30 transition-colors cursor-pointer"
-                title={sessionActive ? "Sesión BOE activa — click para ajustes" : "Sesión BOE inactiva — click para configurar"}
-              >
-                <span className="relative flex h-2.5 w-2.5">
-                  {sessionActive === null ? (
-                    <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40 animate-pulse" />
-                  ) : sessionActive ? (
-                    <>
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                    </>
-                  ) : (
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
-                  )}
-                </span>
-                <span className="text-[10px] font-medium text-muted-foreground hidden sm:inline">
-                  {sessionActive === null ? "..." : sessionActive ? "Sesión activa" : "Sin sesión"}
-                </span>
-              </button>
+            </Link>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="h-9 md:h-8 rounded-full"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 md:mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
-                <span className="hidden md:inline">Actualizar</span>
-              </Button>
+            <button
+              onClick={() => setShowSettings(true)}
+              title="Sesion BOE"
+              className="inline-flex items-center gap-3 rounded-full border border-border bg-card px-4 py-2"
+            >
+              <span
+                className={`h-2.5 w-2.5 rounded-full ${
+                  sessionActive === null
+                    ? "animate-pulse bg-muted-foreground"
+                    : sessionActive
+                      ? "bg-[#9dd7b9]"
+                      : "bg-[#ffb4ab]"
+                }`}
+              />
+              <span className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
+                {sessionActive === null
+                  ? "Comprobando sesion"
+                  : sessionActive
+                    ? "Sesion activa"
+                    : "Sesion expirada"}
+              </span>
+            </button>
+          </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowSettings(true)}
-                className="h-9 md:h-8 rounded-full"
-              >
-                <Settings className="h-3.5 w-3.5" />
-              </Button>
-            </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="h-11 rounded-full border-border bg-card px-4 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-foreground"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Actualizar</span>
+            </Button>
+            <Button
+              onClick={() => setShowScrape(true)}
+              className="h-11 rounded-full bg-primary px-4 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-primary-foreground hover:bg-[#e5be74]"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Scrapear BOE</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              title="Ajustes"
+              onClick={() => setShowSettings(true)}
+              className="h-11 w-11 rounded-full border-border bg-card text-foreground"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-5 md:py-8 space-y-4 md:space-y-6">
-        <section className="grid gap-4 xl:grid-cols-[1.18fr_0.82fr]">
-          <div className="paper-panel-strong rounded-[30px] p-5 md:p-7">
-            <span className="editorial-label">Panel operativo</span>
-            <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <h2 className="max-w-3xl font-heading text-4xl leading-[0.96] tracking-[-0.05em] text-foreground md:text-6xl">
-                  Radar editorial para detectar, filtrar y decidir mejor.
-                </h2>
-                <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground md:text-base">
-                  Mantén el pipeline de scraping vivo, reduce ruido con IA y baja
-                  a cada expediente solo cuando la oportunidad lo merezca.
-                </p>
-              </div>
-              <Button
-                onClick={() => setShowScrape(true)}
-                className="h-11 rounded-full px-5 text-sm shadow-[0_12px_30px_rgba(180,83,9,0.16)]"
-              >
-                <Download className="h-4 w-4" />
-                Scrapear BOE
-              </Button>
+      <div className="mx-auto max-w-[1500px] space-y-6 px-4 py-6 md:px-6 xl:px-8 xl:py-10">
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_360px]">
+          <div className="war-panel-strong overflow-hidden p-6 md:p-8 lg:p-10">
+            <span className="section-kicker">Radar operativo</span>
+            <div className="mt-6 max-w-4xl">
+              <h1 className="text-4xl leading-[0.92] tracking-[-0.07em] md:text-6xl xl:text-7xl">
+                Una interfaz clara para filtrar, leer y priorizar sin pelearte con el BOE.
+              </h1>
+              <p className="mt-5 max-w-3xl text-base leading-8 text-muted-foreground md:text-lg">
+                Aqui trabajas con expedientes reales, shortlist, cierres proximos y lectura IA
+                en una sola superficie. Menos columnas asfixiadas, mas contexto util.
+              </p>
+            </div>
+
+            <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <OverviewStat
+                label="Expedientes"
+                value={String(stats.total)}
+                hint={`${stats.provincias} provincias cubiertas`}
+              />
+              <OverviewStat
+                label="Activas"
+                value={String(stats.activas)}
+                hint="Con fecha de cierre futura"
+                accent="text-primary"
+              />
+              <OverviewStat
+                label="Dossiers IA"
+                value={String(stats.analizadas)}
+                hint="Analisis persistidos listos para abrir"
+                accent="text-[#e5be74]"
+              />
+              <OverviewStat
+                label="Valor agregado"
+                value={formatCompact(stats.valorTotal)}
+                hint="Suma del valor de subasta disponible"
+                accent="text-[#9dd7b9]"
+              />
             </div>
           </div>
 
-          <div className="paper-panel rounded-[30px] p-5 md:p-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-              Señal de oportunidad
-            </p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              {[
-                { label: "Comprar", value: insightSummary.comprar, tone: "bg-emerald-700/10 text-emerald-950" },
-                { label: "Observar", value: insightSummary.observar, tone: "bg-amber-500/12 text-amber-950" },
-                { label: "Descartar", value: insightSummary.descartar, tone: "bg-rose-900/8 text-rose-950" },
-              ].map((item) => (
-                <div key={item.label} className="rounded-[22px] border border-border/70 bg-background/70 p-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                    {item.label}
-                  </p>
-                  <p className={`mt-2 inline-flex rounded-full px-3 py-1 font-heading text-2xl leading-none ${item.tone}`}>
-                    {item.value}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="soft-divider my-5" />
-
-            <div className="rounded-[24px] border border-border/70 bg-background/70 p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                Expediente con mayor score
-              </p>
-              {insightSummary.topSubasta && insightSummary.topScore !== null ? (
-                <div className="mt-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium text-foreground">
-                        {insightSummary.topSubasta.descripcion || insightSummary.topSubasta.id}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {insightSummary.topSubasta.localidad || "Ubicación pendiente"}
-                        {insightSummary.topSubasta.provincia ? ` · ${insightSummary.topSubasta.provincia}` : ""}
-                      </p>
-                    </div>
-                    <ScorePill score={insightSummary.topScore} />
+          <div className="space-y-4">
+            {insightSummary.topSubasta && insightSummary.topScore !== null ? (
+              <section className="war-panel-strong p-6">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <span className="section-kicker">Caso del dia</span>
+                    <p className="mt-3 font-mono text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground">
+                      {insightSummary.topSubasta.id}
+                    </p>
                   </div>
-                  <div className="mt-4 flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {formatCurrency(insightSummary.topSubasta.valorSubasta)}
-                    </span>
-                    <Link
-                      href={`/subastas/${encodeURIComponent(insightSummary.topSubasta.id)}`}
-                      className="font-semibold text-primary hover:underline"
-                    >
-                      Abrir expediente
-                    </Link>
+                  <div className="rounded-full border border-[#e5be74]/20 bg-[#e5be74]/10 px-4 py-2 font-mono text-sm text-[#e5be74]">
+                    {insightSummary.topScore}/100
                   </div>
                 </div>
-              ) : (
-                <p className="mt-3 text-sm text-muted-foreground">
-                  Cuando haya análisis generados, aquí aparecerá la subasta con
-                  mayor convicción.
+
+                <h2 className="mt-5 text-3xl leading-[0.94] tracking-[-0.05em] md:text-4xl">
+                  {displayTitle(insightSummary.topSubasta)}
+                </h2>
+                <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                  {displayMeta(insightSummary.topSubasta)}
                 </p>
-              )}
-            </div>
+                <p className="mt-4 text-sm leading-7 text-foreground/90">
+                  {descriptionExcerpt(insightSummary.topSubasta, 165)}
+                </p>
+
+                <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                  <div className="glass-panel p-4">
+                    <p className="tech-label">Valor</p>
+                    <p className="mt-3 font-mono text-base text-foreground">
+                      {formatCurrency(insightSummary.topSubasta.valorSubasta)}
+                    </p>
+                  </div>
+                  <div className="glass-panel p-4">
+                    <p className="tech-label">Descuento</p>
+                    <div className="mt-3">
+                      <DiscountPill
+                        descuento={calcDescuento(
+                          insightSummary.topSubasta.valorSubasta,
+                          insightSummary.topSubasta.tasacion
+                        )}
+                      />
+                    </div>
+                  </div>
+                  <div className="glass-panel p-4">
+                    <p className="tech-label">Cierre</p>
+                    <div className="mt-3">
+                      <DaysLeftBadge days={daysUntil(insightSummary.topSubasta.fechaConclusion)} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`inline-flex border px-3 py-2 font-mono text-[0.62rem] uppercase tracking-[0.18em] ${recommendationClasses(
+                      analyses[insightSummary.topSubasta.id]?.recomendacion
+                    )}`}
+                  >
+                    {recommendationLabel(analyses[insightSummary.topSubasta.id]?.recomendacion)}
+                  </span>
+                  <span className="rounded-full border border-border px-3 py-2 font-mono text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground">
+                    {insightSummary.topSubasta.documentos?.length || 0} docs
+                  </span>
+                </div>
+
+                <Link
+                  href={`/subastas/${encodeURIComponent(insightSummary.topSubasta.id)}`}
+                  className="mt-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary px-5 py-3 font-mono text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-primary-foreground transition-colors hover:bg-[#e5be74]"
+                >
+                  Abrir dossier
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
+              </section>
+            ) : (
+              <section className="war-panel p-6">
+                <span className="section-kicker">Caso del dia</span>
+                <h2 className="mt-5 text-3xl leading-[0.94] tracking-[-0.05em]">
+                  Aun no hay un expediente destacado.
+                </h2>
+                <p className="mt-4 text-sm leading-7 text-muted-foreground">
+                  En cuanto existan analisis guardados, aqui veras el mejor caso del momento con
+                  score, descuento y acceso directo al dossier.
+                </p>
+              </section>
+            )}
+
+            <section className="war-panel p-6">
+              <p className="tech-label text-primary">Pulso del radar</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                <div className="glass-panel p-4">
+                  <p className="tech-label">Comprar</p>
+                  <p className="mt-3 font-mono text-3xl text-[#e5be74]">{insightSummary.comprar}</p>
+                </div>
+                <div className="glass-panel p-4">
+                  <p className="tech-label">Observar</p>
+                  <p className="mt-3 font-mono text-3xl text-primary">{insightSummary.observar}</p>
+                </div>
+                <div className="glass-panel p-4">
+                  <p className="tech-label">Cierres proximos</p>
+                  <p className="mt-3 font-mono text-3xl text-[#ffb4ab]">
+                    {upcomingClosures.length}
+                  </p>
+                </div>
+              </div>
+            </section>
           </div>
         </section>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-3 md:grid-cols-5 gap-2 md:gap-4">
-          {[
-            { label: "SUBASTAS", value: stats.total.toString(), icon: Gavel },
-            { label: "ACTIVAS", value: stats.activas.toString(), icon: Clock },
-            {
-              label: "VALOR TOTAL",
-              value: formatCompact(stats.valorTotal),
-              icon: TrendingUp,
-            },
-            {
-              label: "PROVINCIAS",
-              value: stats.provincias.toString(),
-              icon: MapPin,
-            },
-            {
-              label: "ANALIZADAS IA",
-              value: stats.analizadas.toString(),
-              icon: Brain,
-            },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="group relative overflow-hidden rounded-lg border border-border/50 bg-card/50 p-3 md:p-5 transition-colors hover:border-primary/30"
-            >
-              <div className="absolute top-0 right-0 w-16 h-16 md:w-20 md:h-20 bg-primary/5 rounded-bl-[40px] transition-colors group-hover:bg-primary/10" />
-              <stat.icon className="h-3.5 w-3.5 md:h-4 md:w-4 text-muted-foreground mb-2 md:mb-3" />
-              {loading ? (
-                <div className="h-6 md:h-8 w-16 md:w-20 bg-muted/50 rounded animate-pulse mt-1" />
-              ) : (
-                <p className="text-lg md:text-2xl font-bold tracking-tight">
-                  {stat.value}
-                </p>
-              )}
-              <p className="text-[8px] md:text-[10px] font-semibold tracking-widest text-muted-foreground mt-1">
-                {stat.label}
-              </p>
-            </div>
-          ))}
-        </div>
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="space-y-4">
+            <div className="war-panel p-4 md:p-5">
+              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_auto]">
+                <div className="relative min-w-0">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar descripcion, direccion, localidad o id"
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    className="h-12 rounded-full border-border bg-input pl-11 font-mono text-xs uppercase tracking-[0.12em] placeholder:text-muted-foreground"
+                  />
+                  {busqueda && (
+                    <button
+                      onClick={() => setBusqueda("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
 
-        {/* Search + Filters */}
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar descripción, dirección, localidad..."
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              className="pl-11 h-11 bg-card/50 border-border/50 text-sm placeholder:text-muted-foreground/60"
-            />
-            {busqueda && (
-              <button
-                onClick={() => setBusqueda("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
+                <div className="relative min-w-0">
+                  <Filter className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <select
+                    value={provinciaFiltro}
+                    onChange={(e) => setProvincia(e.target.value)}
+                    className="h-12 w-full appearance-none rounded-full border border-border bg-input pl-10 pr-9 font-mono text-[0.65rem] uppercase tracking-[0.14em] text-foreground outline-none"
+                  >
+                    <option value="">Todas las provincias</option>
+                    {provincias.map((provincia) => (
+                      <option key={provincia} value={provincia}>
+                        {provincia}
+                      </option>
+                    ))}
+                  </select>
+                  {provinciaFiltro && (
+                    <button
+                      onClick={() => setProvincia("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
 
-          {/* Sort & filter toggles */}
-          <div className="flex gap-1.5 shrink-0">
-            <Button
-              variant={soloFavoritos ? "default" : "outline"}
-              size="icon"
-              onClick={() => { setSoloFavoritos(!soloFavoritos); updateParams({ page: null }); }}
-              className={`h-11 w-11 ${soloFavoritos ? "bg-amber-500 text-white hover:bg-amber-600" : ""}`}
-              title="Favoritos"
-            >
-              <Star className={`h-4 w-4 ${soloFavoritos ? "fill-current" : ""}`} />
-            </Button>
-            <Button
-              variant={ordenarPorIA ? "default" : "outline"}
-              onClick={() => { setOrdenarPorIA(!ordenarPorIA); setOrdenarPorDescuento(false); updateParams({ page: null }); }}
-              className={`h-11 ${ordenarPorIA ? "bg-primary text-primary-foreground" : ""}`}
-              title="Ordenar por puntuación IA"
-            >
-              <Brain className="h-3.5 w-3.5 md:mr-1.5" />
-              <span className="hidden md:inline">IA</span>
-            </Button>
-            <Button
-              variant={ordenarPorDescuento ? "default" : "outline"}
-              onClick={() => { setOrdenarPorDescuento(!ordenarPorDescuento); setOrdenarPorIA(false); updateParams({ page: null }); }}
-              className={`h-11 ${ordenarPorDescuento ? "bg-emerald-600 text-white hover:bg-emerald-700" : ""}`}
-              title="Ordenar por descuento"
-            >
-              <TrendingDown className="h-3.5 w-3.5 md:mr-1.5" />
-              <span className="hidden md:inline">Dcto</span>
-            </Button>
-          </div>
-
-          {/* Province filter */}
-          <div className="relative">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-            <select
-              value={provinciaFiltro}
-              onChange={(e) => setProvincia(e.target.value)}
-              className="w-full sm:w-auto h-11 pl-9 pr-8 rounded-md border border-border/50 bg-card/50 text-sm appearance-none cursor-pointer hover:border-primary/30 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              <option value="">Todas las provincias</option>
-              {provincias.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-            {provinciaFiltro && (
-              <button
-                onClick={() => setProvincia("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Active filters info */}
-        {activeFilters > 0 && !loading && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>
-              {filtradas.length} resultado{filtradas.length !== 1 ? "s" : ""}
-            </span>
-            {provinciaFiltro && (
-              <Badge
-                variant="secondary"
-                className="text-[9px] gap-1 cursor-pointer hover:bg-destructive/10"
-                onClick={() => setProvincia("")}
-              >
-                <MapPin className="h-2.5 w-2.5" />
-                {provinciaFiltro}
-                <X className="h-2 w-2" />
-              </Badge>
-            )}
-            {busqueda && (
-              <Badge
-                variant="secondary"
-                className="text-[9px] gap-1 cursor-pointer hover:bg-destructive/10"
-                onClick={() => setBusqueda("")}
-              >
-                <Search className="h-2.5 w-2.5" />
-                &quot;{busqueda}&quot;
-                <X className="h-2 w-2" />
-              </Badge>
-            )}
-            <button
-              onClick={() => { updateParams({ q: null, provincia: null, page: null }); setRecFiltro(""); setSoloFavoritos(false); }}
-              className="text-[10px] text-primary hover:underline ml-1"
-            >
-              Limpiar filtros
-            </button>
-          </div>
-        )}
-
-        {/* Recommendation filter pills */}
-        {Object.keys(analyses).length > 0 && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-muted-foreground mr-1">Filtrar:</span>
-            {([
-              {
-                key: "comprar",
-                label: "Comprar",
-                icon: CheckCircle,
-                activeClass: "border-emerald-700/20 bg-emerald-700/10 text-emerald-950",
-              },
-              {
-                key: "observar",
-                label: "Observar",
-                icon: Eye,
-                activeClass: "border-amber-500/25 bg-amber-500/12 text-amber-950",
-              },
-              {
-                key: "descartar",
-                label: "Descartar",
-                icon: XCircle,
-                activeClass: "border-rose-900/15 bg-rose-900/8 text-rose-950",
-              },
-            ] as const).map(({ key, label, icon: Icon, activeClass }) => (
-              <button
-                key={key}
-                onClick={() => { setRecFiltro(recFiltro === key ? "" : key); updateParams({ page: null }); }}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] font-semibold transition-colors ${
-                  recFiltro === key
-                    ? activeClass
-                    : "border-border/50 text-muted-foreground hover:border-border"
-                }`}
-              >
-                <Icon className="h-2.5 w-2.5" />
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Empty / Loading states */}
-        {loading && (
-          <div className="space-y-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-lg border border-border/50 bg-card/50 p-4 animate-pulse">
-                <div className="h-4 w-32 bg-muted/40 rounded mb-2" />
-                <div className="h-3 w-48 bg-muted/30 rounded mb-3" />
-                <div className="flex gap-4">
-                  <div className="h-3 w-20 bg-muted/30 rounded" />
-                  <div className="h-3 w-16 bg-muted/30 rounded" />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant={soloFavoritos ? "default" : "outline"}
+                    title="Solo favoritos"
+                    onClick={() => {
+                      setSoloFavoritos(!soloFavoritos);
+                      updateParams({ page: null });
+                    }}
+                    className={`h-12 rounded-full border-border px-4 font-mono text-[0.65rem] uppercase tracking-[0.16em] ${
+                      soloFavoritos
+                        ? "bg-[#e5be74] text-[#261900] hover:bg-[#e5be74]"
+                        : "bg-card text-foreground"
+                    }`}
+                  >
+                    <Star className={`h-3.5 w-3.5 ${soloFavoritos ? "fill-current" : ""}`} />
+                    Favoritos
+                  </Button>
+                  <Button
+                    variant={ordenarPorIA ? "default" : "outline"}
+                    title="Ordenar por puntuacion IA"
+                    onClick={() => {
+                      setOrdenarPorIA(!ordenarPorIA);
+                      setOrdenarPorDescuento(false);
+                      updateParams({ page: null });
+                    }}
+                    className={`h-12 rounded-full border-border px-4 font-mono text-[0.65rem] uppercase tracking-[0.16em] ${
+                      ordenarPorIA
+                        ? "bg-primary text-primary-foreground hover:bg-primary"
+                        : "bg-card text-foreground"
+                    }`}
+                  >
+                    <Brain className="h-3.5 w-3.5" />
+                    Orden IA
+                  </Button>
+                  <Button
+                    variant={ordenarPorDescuento ? "default" : "outline"}
+                    title="Ordenar por descuento"
+                    onClick={() => {
+                      setOrdenarPorDescuento(!ordenarPorDescuento);
+                      setOrdenarPorIA(false);
+                      updateParams({ page: null });
+                    }}
+                    className={`h-12 rounded-full border-border px-4 font-mono text-[0.65rem] uppercase tracking-[0.16em] ${
+                      ordenarPorDescuento
+                        ? "bg-[#e5be74] text-[#261900] hover:bg-[#e5be74]"
+                        : "bg-card text-foreground"
+                    }`}
+                  >
+                    <TrendingDown className="h-3.5 w-3.5" />
+                    Descuento
+                  </Button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
 
-        {!loading && filtradas.length === 0 && (
-          <div className="flex flex-col items-center gap-4 py-20">
-            <div className="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center">
-              <Gavel className="h-7 w-7 text-primary/40" />
-            </div>
-            <div className="text-center">
-              <p className="font-medium">No hay subastas</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {activeFilters > 0 ? (
+              {Object.keys(analyses).length > 0 && (
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <span className="tech-label">Recomendacion</span>
+                  {recommendationOptions.map(({ key, label, icon: Icon, value }) => (
+                    <button
+                      key={key}
+                      onClick={() => {
+                        setRecFiltro(recFiltro === key ? "" : key);
+                        updateParams({ page: null });
+                      }}
+                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 font-mono text-[0.62rem] uppercase tracking-[0.18em] ${
+                        recFiltro === key
+                          ? recommendationClasses(key)
+                          : "border-border bg-card text-muted-foreground"
+                      }`}
+                    >
+                      <Icon className="h-3 w-3" />
+                      {label}
+                      <span className="text-[0.6rem] opacity-70">{value}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                <span>
+                  {filtradas.length} resultado{filtradas.length !== 1 ? "s" : ""}
+                </span>
+                {activeFilters > 0 && (
                   <button
-                    onClick={() => updateParams({ q: null, provincia: null, page: null })}
-                    className="text-primary hover:underline font-semibold"
+                    onClick={() => {
+                      updateParams({ q: null, provincia: null, page: null });
+                      setRecFiltro("");
+                      setSoloFavoritos(false);
+                    }}
+                    className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-primary hover:text-[#e5be74]"
                   >
                     Limpiar filtros
                   </button>
-                ) : (
-                  <>
-                    Pulsa{" "}
-                    <button
-                      onClick={() => setShowScrape(true)}
-                      className="text-primary hover:underline font-semibold"
-                    >
-                      Scrapear BOE
-                    </button>{" "}
-                    para descargar datos
-                  </>
                 )}
-              </p>
+              </div>
             </div>
-          </div>
-        )}
 
-        {/* Mobile Card Layout */}
-        {!loading && paginadas.length > 0 && (
-          <div className="md:hidden space-y-2">
-            {paginadas.map((s) => {
-              const days = daysUntil(s.fechaConclusion);
-              const analysis = analyses[s.id];
-              const isVivienda = s.tipoBienDetalle?.toLowerCase().includes("vivienda");
-              return (
-                <div key={s.id} className="rounded-lg border border-border/50 bg-card/50 p-3.5 transition-colors relative">
-                  <button
-                    onClick={(e) => { e.preventDefault(); toggleFavorito(s.id); }}
-                    className="absolute top-3 right-3 p-1 z-10"
-                  >
-                    <Star className={`h-4 w-4 ${favoritos.has(s.id) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`} />
-                  </button>
-                <Link
-                  href={`/subastas/${encodeURIComponent(s.id)}`}
-                  className="block active:bg-primary/[0.05]"
-                >
-                  <div className="flex items-start justify-between gap-2 mb-1.5 pr-6">
-                    <Badge variant="secondary" className="text-[9px] font-semibold tracking-wide shrink-0">
-                      {isVivienda && <Home className="h-2.5 w-2.5 mr-1" />}
-                      {s.tipoBienDetalle || "—"}
-                    </Badge>
-                    <div className="flex items-center gap-2">
-                      {analysis && <ScorePill score={analysis.oportunidad} />}
-                      {days !== null && <DaysLeftBadge days={days} />}
-                    </div>
+            {loading && (
+              <div className="space-y-3">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div key={index} className="war-panel-muted animate-pulse p-5 md:p-6">
+                    <div className="h-3 w-24 bg-muted/70" />
+                    <div className="mt-4 h-8 w-2/3 bg-muted/70" />
+                    <div className="mt-4 h-3 w-full bg-muted/60" />
+                    <div className="mt-2 h-3 w-4/5 bg-muted/60" />
                   </div>
-                  <p className="text-sm font-medium line-clamp-2 mb-1.5">
-                    {s.descripcion || "Sin descripción"}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">
-                      {s.localidad || "—"}{s.provincia ? `, ${s.provincia}` : ""}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <DescuentoBadge descuento={calcDescuento(s.valorSubasta, s.tasacion)} />
-                      <span className="font-mono text-sm font-semibold tabular-nums text-primary">
-                        {formatCurrency(s.valorSubasta)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 mt-1.5">
-                    {s.pujActual && (
-                      <span className="text-[10px] font-semibold text-amber-400">
-                        Puja: {formatCurrency(s.pujActual)}
-                      </span>
-                    )}
-                    {s.documentos && s.documentos.length > 0 && (
-                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <FileText className="h-3 w-3" />
-                        {s.documentos.length} doc{s.documentos.length > 1 ? "s" : ""}
-                      </span>
-                    )}
-                  </div>
-                </Link>
+                ))}
+              </div>
+            )}
+
+            {!loading && filtradas.length === 0 && (
+              <div className="war-panel-strong p-10 text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-primary/15 bg-primary/10 text-primary">
+                  <ShieldAlert className="h-7 w-7" />
                 </div>
-              );
-            })}
-          </div>
-        )}
+                <h2 className="mt-6 text-4xl tracking-[-0.05em]">No hay casos con estos filtros.</h2>
+                <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-muted-foreground">
+                  Ajusta la busqueda, limpia filtros o abre una nueva sesion de scraping para
+                  volver a llenar el radar.
+                </p>
+              </div>
+            )}
 
-        {/* Desktop Table */}
-        {!loading && paginadas.length > 0 && (
-          <div className="hidden md:block rounded-lg border border-border/50 overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border/50 bg-card/30">
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Tipo</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Descripción</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Ubicación</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">Valor</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">Tasación</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">Dcto</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-right">Puja</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">Cierre</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">IA</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase text-center">Docs</TableHead>
-                  <TableHead className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase w-8"></TableHead>
-                  <TableHead className="w-8"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginadas.map((s) => {
-                  const days = daysUntil(s.fechaConclusion);
-                  const analysis = analyses[s.id];
-                  const isVivienda = s.tipoBienDetalle?.toLowerCase().includes("vivienda");
-                  return (
-                    <TableRow key={s.id} className="border-border/30 hover:bg-primary/[0.03] transition-colors group">
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <Badge variant="secondary" className="text-[9px] font-semibold tracking-wide w-fit">
-                            {isVivienda && <Home className="h-2.5 w-2.5 mr-1" />}
-                            {s.tipoBienDetalle || "—"}
-                          </Badge>
-                          <span className="text-[9px] text-muted-foreground/60 font-mono">
-                            {s.id.length > 20 ? s.id.substring(0, 20) + "…" : s.id}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-[250px]">
-                        <Link href={`/subastas/${encodeURIComponent(s.id)}`} className="hover:text-primary transition-colors">
-                          <p className="truncate text-sm font-medium">{s.descripcion || "Sin descripción"}</p>
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="text-xs">{s.localidad || "—"}</span>
-                          <span className="text-[10px] text-muted-foreground">{s.provincia || ""}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">{formatCurrency(s.valorSubasta)}</TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">{formatCurrency(s.tasacion)}</TableCell>
-                      <TableCell className="text-center"><DescuentoBadge descuento={calcDescuento(s.valorSubasta, s.tasacion)} /></TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        {s.pujActual ? <span className="text-amber-400 font-semibold">{formatCurrency(s.pujActual)}</span> : <span className="text-muted-foreground/30">—</span>}
-                      </TableCell>
-                      <TableCell className="text-center">{days !== null ? <DaysLeftBadge days={days} /> : "—"}</TableCell>
-                      <TableCell className="text-center">
-                        {analysis ? (
-                          <Link href={`/subastas/${encodeURIComponent(s.id)}`}><ScorePill score={analysis.oportunidad} /></Link>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground/30">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {s.documentos && s.documentos.length > 0 ? (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                            <FileText className="h-3 w-3" />{s.documentos.length}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground/30">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <a href={s.url} target="_blank" rel="noopener noreferrer" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
-                        </a>
-                      </TableCell>
-                      <TableCell>
-                        <button onClick={() => toggleFavorito(s.id)} className="p-0.5">
-                          <Star className={`h-3.5 w-3.5 transition-colors ${favoritos.has(s.id) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/20 hover:text-amber-400/50"}`} />
-                        </button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+            {!loading && paginadas.length > 0 && (
+              <div className="space-y-3">
+                {paginadas.map((subasta) => (
+                  <AuctionCard
+                    key={subasta.id}
+                    subasta={subasta}
+                    analysis={analyses[subasta.id]}
+                    isFavorite={favoritos.has(subasta.id)}
+                    onToggleFavorite={toggleFavorito}
+                  />
+                ))}
+              </div>
+            )}
 
-        {/* Pagination */}
-        {!loading && filtradas.length > PAGE_SIZE && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
-              {(paginaReal - 1) * PAGE_SIZE + 1}–
-              {Math.min(paginaReal * PAGE_SIZE, filtradas.length)} de{" "}
-              <span className="font-semibold text-foreground">
-                {filtradas.length}
-              </span>{" "}
-              subastas
-            </p>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 md:h-8 md:w-8"
-                disabled={paginaReal <= 1}
-                onClick={() => setPagina(1)}
-              >
-                <ChevronsLeft className="h-4 w-4 md:h-3.5 md:w-3.5" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 md:h-8 md:w-8"
-                disabled={paginaReal <= 1}
-                onClick={() => setPagina((p) => Math.max(1, p - 1))}
-              >
-                <ChevronLeft className="h-4 w-4 md:h-3.5 md:w-3.5" />
-              </Button>
-
-              {/* Page numbers - fewer on mobile */}
-              {Array.from({ length: Math.min(totalPaginas <= 3 ? totalPaginas : 3, totalPaginas) }).map((_, i) => {
-                let p: number;
-                const maxVisible = totalPaginas <= 3 ? totalPaginas : 3;
-                if (totalPaginas <= maxVisible) {
-                  p = i + 1;
-                } else if (paginaReal <= 2) {
-                  p = i + 1;
-                } else if (paginaReal >= totalPaginas - 1) {
-                  p = totalPaginas - maxVisible + 1 + i;
-                } else {
-                  p = paginaReal - 1 + i;
-                }
-                return (
+            {!loading && filtradas.length > PAGE_SIZE && (
+              <div className="war-panel flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+                <p className="text-xs text-muted-foreground">
+                  {(paginaReal - 1) * PAGE_SIZE + 1}-
+                  {Math.min(paginaReal * PAGE_SIZE, filtradas.length)} de {filtradas.length}
+                </p>
+                <div className="flex items-center gap-2">
                   <Button
-                    key={p}
-                    variant={p === paginaReal ? "default" : "outline"}
+                    variant="outline"
                     size="icon"
-                    className="h-9 w-9 md:h-8 md:w-8 text-xs"
-                    onClick={() => setPagina(p)}
+                    className="h-10 w-10 rounded-full border-border bg-card text-foreground"
+                    disabled={paginaReal <= 1}
+                    onClick={() => setPagina(1)}
                   >
-                    {p}
+                    <ChevronsLeft className="h-4 w-4" />
                   </Button>
-                );
-              })}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 rounded-full border-border bg-card text-foreground"
+                    disabled={paginaReal <= 1}
+                    onClick={() => setPagina((prev) => Math.max(1, prev - 1))}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  {Array.from({ length: Math.min(totalPaginas <= 3 ? totalPaginas : 3, totalPaginas) }).map(
+                    (_, index) => {
+                      let pageNumber: number;
+                      if (totalPaginas <= 3) pageNumber = index + 1;
+                      else if (paginaReal <= 2) pageNumber = index + 1;
+                      else if (paginaReal >= totalPaginas - 1) pageNumber = totalPaginas - 2 + index;
+                      else pageNumber = paginaReal - 1 + index;
 
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 md:h-8 md:w-8"
-                disabled={paginaReal >= totalPaginas}
-                onClick={() =>
-                  setPagina((p) => Math.min(totalPaginas, p + 1))
-                }
-              >
-                <ChevronRight className="h-4 w-4 md:h-3.5 md:w-3.5" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 md:h-8 md:w-8"
-                disabled={paginaReal >= totalPaginas}
-                onClick={() => setPagina(totalPaginas)}
-              >
-                <ChevronsRight className="h-4 w-4 md:h-3.5 md:w-3.5" />
-              </Button>
-            </div>
+                      return (
+                        <Button
+                          key={pageNumber}
+                          variant={pageNumber === paginaReal ? "default" : "outline"}
+                          className={`h-10 w-10 rounded-full font-mono text-xs ${
+                            pageNumber === paginaReal
+                              ? "bg-primary text-primary-foreground hover:bg-primary"
+                              : "border-border bg-card text-foreground"
+                          }`}
+                          onClick={() => setPagina(pageNumber)}
+                        >
+                          {pageNumber}
+                        </Button>
+                      );
+                    }
+                  )}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 rounded-full border-border bg-card text-foreground"
+                    disabled={paginaReal >= totalPaginas}
+                    onClick={() => setPagina((prev) => Math.min(totalPaginas, prev + 1))}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 rounded-full border-border bg-card text-foreground"
+                    disabled={paginaReal >= totalPaginas}
+                    onClick={() => setPagina(totalPaginas)}
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
 
-        {/* Footer */}
-        <p className="text-center text-[10px] text-muted-foreground/50 tracking-wider uppercase pb-4">
-          Datos públicos de subastas.boe.es — Persistidos en MongoDB
-        </p>
+          <div className="space-y-4">
+            <RailCard title="Resumen IA" icon={Brain}>
+              <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                <div className="glass-panel p-4">
+                  <p className="tech-label">Comprar</p>
+                  <p className="mt-3 font-mono text-2xl text-[#e5be74]">{insightSummary.comprar}</p>
+                </div>
+                <div className="glass-panel p-4">
+                  <p className="tech-label">Observar</p>
+                  <p className="mt-3 font-mono text-2xl text-primary">{insightSummary.observar}</p>
+                </div>
+                <div className="glass-panel p-4">
+                  <p className="tech-label">Descartar</p>
+                  <p className="mt-3 font-mono text-2xl text-[#ffb4ab]">{insightSummary.descartar}</p>
+                </div>
+              </div>
+            </RailCard>
+
+            <RailCard title="Shortlist" icon={Star}>
+              {shortlist.length > 0 ? (
+                <div className="space-y-3">
+                  {shortlist.map((item) => (
+                    <Link
+                      key={item.id}
+                      href={`/subastas/${encodeURIComponent(item.id)}`}
+                      className="block rounded-[1.1rem] border border-border/70 bg-card/70 p-4 transition-colors hover:border-primary/20"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-mono text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground">
+                          {item.id.slice(0, 14)}
+                        </span>
+                        {analyses[item.id] && <ScorePill score={analyses[item.id].oportunidad} />}
+                      </div>
+                      <p className="mt-3 font-heading text-2xl leading-[0.96] tracking-[-0.05em]">
+                        {displayTitle(item)}
+                      </p>
+                      <p className="mt-2 text-sm leading-7 text-muted-foreground">
+                        {displayMeta(item)}
+                      </p>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm leading-7 text-muted-foreground">
+                  Cuando guardes favoritos o existan casos analizados, el shortlist aparecera
+                  aqui con acceso rapido.
+                </p>
+              )}
+            </RailCard>
+
+            <RailCard title="Cierres proximos" icon={Clock} tone="gold">
+              {upcomingClosures.length > 0 ? (
+                <div className="space-y-3">
+                  {upcomingClosures.map((item) => (
+                    <div key={item.id} className="rounded-[1.1rem] border border-border/70 bg-card/70 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="tech-label">{item.localidad || item.id.slice(0, 12)}</p>
+                        <DaysLeftBadge days={daysUntil(item.fechaConclusion)} />
+                      </div>
+                      <p className="mt-3 font-heading text-2xl leading-[0.96] tracking-[-0.05em]">
+                        {displayTitle(item)}
+                      </p>
+                      <p className="mt-2 text-sm leading-7 text-muted-foreground">
+                        {descriptionExcerpt(item, 120)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm leading-7 text-muted-foreground">
+                  No hay expedientes que venzan en los proximos diez dias con los filtros
+                  actuales.
+                </p>
+              )}
+            </RailCard>
+          </div>
+        </section>
       </div>
 
       {showScrape && (
@@ -1044,13 +1250,15 @@ function DashboardContent() {
         />
       )}
 
-      {/* Settings Panel */}
       {showSettings && (
         <SettingsPanel
           onClose={() => setShowSettings(false)}
           sessionActive={sessionActive}
           onSessionUpdate={() => checkSession()}
-          onScrapeOpen={() => { setShowSettings(false); setShowScrape(true); }}
+          onScrapeOpen={() => {
+            setShowSettings(false);
+            setShowScrape(true);
+          }}
         />
       )}
     </main>
@@ -1096,79 +1304,90 @@ function SettingsPanel({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
-      <div className="w-full max-w-md mx-4 rounded-xl border border-border/50 bg-card shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-              <Settings className="h-4 w-4 text-primary" />
-            </div>
-            <h2 className="font-bold text-sm">Ajustes</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="war-panel-strong w-full max-w-md p-0" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border/40 px-5 py-4">
+          <div>
+            <p className="section-kicker">Ajustes</p>
+            <p className="mt-3 font-heading text-3xl tracking-[-0.05em]">Sesion y scraping</p>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="h-10 w-10 text-muted-foreground hover:bg-card hover:text-foreground"
+          >
             <X className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="px-5 py-5 space-y-5">
-          {/* Session status */}
-          <div className="space-y-3">
-            <label className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase flex items-center gap-1.5">
-              <KeyRound className="h-3 w-3" />
-              Sesión BOE
+        <div className="space-y-6 p-5">
+          <div className="war-panel-muted p-4">
+            <label className="tech-label flex items-center gap-2">
+              <KeyRound className="h-3.5 w-3.5" />
+              Sesion BOE
             </label>
-            <div className="flex items-center gap-2 p-3 rounded-md border border-border/50 bg-card/50">
-              {sessionActive ? (
-                <>
-                  <div className="h-2.5 w-2.5 rounded-full bg-emerald-400 shrink-0" />
-                  <span className="text-sm text-emerald-400 font-medium">Sesión activa</span>
-                </>
-              ) : (
-                <>
-                  <div className="h-2.5 w-2.5 rounded-full bg-red-400 shrink-0" />
-                  <span className="text-sm text-red-400 font-medium">Sin sesión o expirada</span>
-                </>
-              )}
+            <div className="mt-4 flex items-center gap-3 border border-border bg-card px-4 py-3">
+              <span
+                className={`h-2 w-2 ${
+                  sessionActive === null
+                    ? "animate-pulse bg-muted-foreground"
+                    : sessionActive
+                      ? "bg-[#9dd7b9]"
+                      : "bg-[#ffb4ab]"
+                }`}
+              />
+              <span className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
+                {sessionActive === null
+                  ? "Comprobando"
+                  : sessionActive
+                    ? "Sesion activa"
+                    : "Sin sesion o expirada"}
+              </span>
             </div>
-            <div className="space-y-2">
+
+            <div className="mt-4 space-y-3">
               <Input
                 placeholder="SESSID"
                 value={sessId}
                 onChange={(e) => setSessId(e.target.value)}
-                className="h-10 text-sm font-mono"
+                className="h-11 border-border bg-input font-mono text-xs uppercase tracking-[0.12em]"
               />
               <Input
                 placeholder="SimpleSAML"
                 value={simpleSaml}
                 onChange={(e) => setSimpleSaml(e.target.value)}
-                className="h-10 text-sm font-mono"
+                className="h-11 border-border bg-input font-mono text-xs uppercase tracking-[0.12em]"
               />
               <Button
                 onClick={handleSaveSession}
                 disabled={(!sessId.trim() && !simpleSaml.trim()) || saving}
-                className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90"
+                className="h-11 w-full bg-primary font-mono text-[0.68rem] uppercase tracking-[0.18em] text-primary-foreground hover:bg-[#e5be74]"
               >
                 {saved ? "Guardadas" : saving ? "Guardando..." : "Actualizar cookies"}
               </Button>
             </div>
-            <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Loguéate en subastas.boe.es con Cl@ve, abre DevTools → Application → Cookies y copia SESSID y SimpleSAML.
+
+            <p className="mt-4 text-xs leading-6 text-muted-foreground">
+              Modo rapido: entra en subastas.boe.es con Cl@ve, abre DevTools y copia
+              SESSID y SimpleSAML desde las cookies del sitio. Modo estable: usar
+              usuario/contrasena del BOE y leer el OTP por Gmail API; el reseteo de
+              contrasena sigue siendo manual porque usa email y SMS distintos.
             </p>
           </div>
 
-          {/* Scraping */}
-          <div className="space-y-3 pt-2 border-t border-border/50">
-            <label className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase flex items-center gap-1.5">
-              <Download className="h-3 w-3" />
-              Scraping
+          <div className="war-panel-muted p-4">
+            <label className="tech-label flex items-center gap-2">
+              <Download className="h-3.5 w-3.5" />
+              Operacion
             </label>
             <Button
               variant="outline"
               onClick={onScrapeOpen}
-              className="w-full h-10"
+              className="mt-4 h-11 w-full border-border bg-card font-mono text-[0.68rem] uppercase tracking-[0.18em] text-foreground hover:bg-card/80"
             >
-              <Download className="h-4 w-4 mr-2" />
-              Configurar y scrapear BOE
+              <Download className="h-4 w-4" />
+              Configurar y scrapear
             </Button>
           </div>
         </div>
