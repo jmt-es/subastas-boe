@@ -27,22 +27,19 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { BrandMark } from "@/components/brand-mark";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  formatCurrency,
+  normalizeText,
+  provinceLabel,
+  smartSentenceCase,
+  smartTitleCase,
+} from "@/lib/subasta-presenters";
 import { useAnalysis } from "@/lib/use-subastas";
 import type { Documento, Subasta } from "@/lib/scraper";
 import type { AnalysisResult } from "@/lib/storage";
-
-function formatCurrency(value?: string): string {
-  if (!value) return "—";
-  const num = parseFloat(value.replace(/[^\d,.-]/g, "").replace(",", "."));
-  if (Number.isNaN(num)) return value;
-  return new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(num);
-}
 
 function recommendationLabel(rec: "comprar" | "observar" | "descartar") {
   if (rec === "comprar") return "Comprar";
@@ -52,21 +49,12 @@ function recommendationLabel(rec: "comprar" | "observar" | "descartar") {
 
 function recommendationClasses(rec: "comprar" | "observar" | "descartar") {
   if (rec === "comprar") {
-    return "border-[#e5be74]/30 bg-[#e5be74]/10 text-[#e5be74]";
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
   if (rec === "observar") {
-    return "border-primary/25 bg-primary/10 text-primary";
+    return "border-primary/15 bg-primary/8 text-primary";
   }
-  return "border-[#ffb4ab]/30 bg-[#ffb4ab]/10 text-[#ffb4ab]";
-}
-
-function provinceLabel(value?: string) {
-  if (!value) return "";
-  return value.split("/")[0]?.trim() || value;
-}
-
-function normalizeText(value?: string) {
-  return value?.replace(/\s+/g, " ").trim() || "";
+  return "border-rose-200 bg-rose-50 text-rose-700";
 }
 
 function inferAssetLabel(subasta: Subasta) {
@@ -91,28 +79,28 @@ function inferAssetLabel(subasta: Subasta) {
   }
   if (source.includes("oficina")) return "Oficina";
 
-  return normalizeText(subasta.tipoBienDetalle) || "Activo judicial";
+  return smartTitleCase(subasta.tipoBienDetalle) || "Activo judicial";
 }
 
 function displayTitle(subasta: Subasta) {
   const asset = inferAssetLabel(subasta);
-  const place = subasta.localidad || provinceLabel(subasta.provincia);
+  const place = smartTitleCase(subasta.localidad || provinceLabel(subasta.provincia));
   return place ? `${asset} en ${place}` : asset;
 }
 
 function displayMeta(subasta: Subasta) {
   return [
-    subasta.direccion ? normalizeText(subasta.direccion).split(",").slice(0, 2).join(", ") : "",
-    subasta.localidad,
+    subasta.direccion ? smartTitleCase(normalizeText(subasta.direccion).split(",").slice(0, 2).join(", ")) : "",
+    smartTitleCase(subasta.localidad),
     provinceLabel(subasta.provincia),
-    normalizeText(subasta.tipoSubasta),
+    smartTitleCase(subasta.tipoSubasta),
   ]
     .filter(Boolean)
     .join(" · ");
 }
 
 function descriptionExcerpt(value?: string, maxLength = 340) {
-  const normalized = normalizeText(value);
+  const normalized = smartSentenceCase(value);
   if (!normalized) return "El expediente no trae una descripcion legible en origen.";
   if (normalized.length <= maxLength) return normalized;
   return `${normalized.slice(0, maxLength).trimEnd()}...`;
@@ -135,23 +123,23 @@ function daysUntil(d?: string): number | null {
 function ScoreBar({ score }: { score: number }) {
   const color =
     score >= 70
-      ? "bg-[#e5be74]"
+      ? "bg-emerald-500"
       : score >= 40
         ? "bg-primary"
-        : "bg-[#ffb4ab]";
+        : "bg-rose-500";
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-end gap-3">
-        <span className="font-mono text-7xl font-light tracking-[-0.08em] text-[#e5be74]">
+        <span className="text-[2.45rem] font-semibold tracking-[-0.05em] text-foreground">
           {score}
         </span>
-        <span className="pb-3 font-mono text-xs uppercase tracking-[0.2em] text-primary">
+        <span className="pb-2 text-sm font-medium text-muted-foreground">
           /100
         </span>
       </div>
-      <div className="h-2 overflow-hidden bg-muted">
-        <div className={`h-full ${color}`} style={{ width: `${score}%` }} />
+      <div className="h-2 overflow-hidden rounded-full bg-muted">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${score}%` }} />
       </div>
     </div>
   );
@@ -167,7 +155,7 @@ function RecomendacionBadge({
 
   return (
     <span
-      className={`inline-flex items-center gap-2 border px-3 py-2 font-mono text-[0.68rem] uppercase tracking-[0.18em] ${recommendationClasses(
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold ${recommendationClasses(
         rec
       )}`}
     >
@@ -182,7 +170,7 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="grid gap-3 border-b border-border/30 py-3 last:border-b-0 md:grid-cols-[0.8fr_1.2fr]">
       <span className="tech-label">{label}</span>
-      <span className="text-sm leading-7 text-foreground">{value}</span>
+      <span className="text-[0.98rem] leading-8 text-foreground">{value}</span>
     </div>
   );
 }
@@ -194,13 +182,20 @@ function MetricCard({
 }: {
   label: string;
   value?: string;
-  accent?: "blue" | "gold";
+  accent?: "primary" | "success" | "warning";
 }) {
-  const tone = accent === "gold" ? "text-[#e5be74]" : "text-primary";
+  const tone =
+    accent === "success"
+      ? "text-emerald-700"
+      : accent === "warning"
+        ? "text-amber-700"
+        : "text-foreground";
   return (
-    <div className="war-panel-muted p-4 md:p-5">
+    <div className="glass-panel p-4 md:p-5">
       <p className="tech-label">{label}</p>
-      <p className={`mt-3 font-mono text-xl md:text-2xl ${tone}`}>{formatCurrency(value)}</p>
+      <p className={`mt-2 text-[1rem] font-semibold md:text-[1.08rem] ${tone}`}>
+        {formatCurrency(value)}
+      </p>
     </div>
   );
 }
@@ -218,16 +213,16 @@ function SnapshotCard({
 }) {
   const tone =
     accent === "gold"
-      ? "text-[#e5be74]"
+      ? "text-amber-700"
       : accent === "danger"
-        ? "text-[#ffb4ab]"
-        : "text-primary";
+        ? "text-rose-700"
+        : "text-foreground";
 
   return (
     <div className="war-panel-muted p-4 md:p-5">
       <p className="tech-label">{label}</p>
-      <p className={`mt-3 font-mono text-2xl tracking-[-0.05em] ${tone}`}>{value}</p>
-      {hint && <p className="mt-2 text-xs leading-6 text-muted-foreground">{hint}</p>}
+      <p className={`mt-2 text-[1.35rem] font-semibold tracking-[-0.04em] ${tone}`}>{value}</p>
+      {hint && <p className="mt-2 text-sm leading-6 text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -245,16 +240,16 @@ function DossierSection({
 }) {
   const accentClass =
     accent === "gold"
-      ? "text-[#e5be74]"
+      ? "text-amber-700"
       : accent === "danger"
-        ? "text-[#ffb4ab]"
+        ? "text-rose-700"
         : "text-primary";
 
   return (
     <section className="war-panel p-5 md:p-6">
       <div className={`mb-5 flex items-center gap-2 ${accentClass}`}>
         <Icon className="h-4 w-4" />
-        <h3 className="tech-label text-current">{title}</h3>
+        <h3 className="text-sm font-semibold tracking-[0.01em] text-current">{title}</h3>
       </div>
       {children}
     </section>
@@ -276,16 +271,16 @@ function BulletSection({
 
   const accentClass =
     accent === "gold"
-      ? "text-[#e5be74]"
+      ? "text-amber-700"
       : accent === "danger"
-        ? "text-[#ffb4ab]"
+        ? "text-rose-700"
         : "text-primary";
 
   return (
     <DossierSection title={title} icon={Icon} accent={accent}>
       <ul className="space-y-3">
         {items.map((item, index) => (
-          <li key={`${title}-${index}`} className="flex items-start gap-3 text-sm leading-7 text-foreground">
+          <li key={`${title}-${index}`} className="flex items-start gap-3 text-[0.98rem] leading-8 text-foreground">
             <span className={`mt-2 h-1.5 w-1.5 ${accentClass} bg-current`} />
             <span>{item}</span>
           </li>
@@ -366,11 +361,11 @@ function CopyAnalysisButton({
     <Button
       onClick={handleCopy}
       variant="outline"
-      className="h-10 border-border bg-card font-mono text-[0.65rem] uppercase tracking-[0.16em] text-foreground hover:bg-card/80"
+      className="h-10 rounded-2xl border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-card/80"
     >
       {copied ? (
         <>
-          <Check className="h-3.5 w-3.5 text-[#9dd7b9]" />
+          <Check className="h-3.5 w-3.5 text-emerald-600" />
           Copiado
         </>
       ) : (
@@ -398,7 +393,7 @@ function AnalysisTab({
     return (
       <div className="war-panel-strong p-12 text-center">
         <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-        <p className="mt-4 font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">
+        <p className="mt-4 text-sm font-medium text-muted-foreground">
           Analizando expediente
         </p>
       </div>
@@ -407,10 +402,10 @@ function AnalysisTab({
 
   if (analyzeError) {
     return (
-      <div className="border border-[#ffb4ab]/20 bg-[#ffb4ab]/10 p-5 text-[#ffb4ab]">
+      <div className="rounded-[1.2rem] border border-rose-200 bg-rose-50 p-5 text-rose-700">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4" />
-          <span className="font-mono text-xs uppercase tracking-[0.18em]">
+          <span className="text-sm font-semibold">
             {analyzeError}
           </span>
         </div>
@@ -434,7 +429,7 @@ function AnalysisTab({
 
         <DossierSection title="Resumen ejecutivo" icon={Brain}>
           <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-            <p className="max-w-3xl text-sm leading-8 text-foreground">{analysis.resumen}</p>
+            <p className="max-w-3xl text-[0.98rem] leading-8 text-foreground">{analysis.resumen}</p>
             <CopyAnalysisButton analysis={analysis} subasta={subasta} />
           </div>
         </DossierSection>
@@ -447,34 +442,38 @@ function AnalysisTab({
               {
                 label: "Valor mercado",
                 value: eco.valorMercadoEstimado,
-                accent: "blue" as const,
+                accent: "primary" as const,
               },
               {
                 label: "Descuento",
                 value: eco.descuentoEstimado,
-                accent: "gold" as const,
+                accent: "warning" as const,
               },
               {
                 label: "Deposito necesario",
                 value: eco.depositoNecesario,
-                accent: "blue" as const,
+                accent: "primary" as const,
               },
               {
                 label: "Costes totales",
                 value: eco.costesTotalesEstimados,
-                accent: "gold" as const,
+                accent: "warning" as const,
               },
               {
                 label: "Rentabilidad",
                 value: eco.rentabilidadEstimada,
-                accent: "blue" as const,
+                accent: "success" as const,
               },
             ].map((item) => (
               <div key={item.label} className="war-panel-muted p-4">
                 <p className="tech-label">{item.label}</p>
                 <p
-                  className={`mt-3 font-mono text-lg ${
-                    item.accent === "gold" ? "text-[#e5be74]" : "text-primary"
+                  className={`mt-3 text-[1.05rem] font-semibold ${
+                    item.accent === "warning"
+                      ? "text-amber-700"
+                      : item.accent === "success"
+                        ? "text-emerald-700"
+                        : "text-foreground"
                   }`}
                 >
                   {item.value || "—"}
@@ -488,7 +487,7 @@ function AnalysisTab({
               <Separator className="my-5 bg-border/30" />
               <ul className="space-y-3">
                 {eco.items.map((item, index) => (
-                  <li key={index} className="flex items-start gap-3 text-sm leading-7 text-foreground">
+                  <li key={index} className="flex items-start gap-3 text-[0.98rem] leading-8 text-foreground">
                     <span className="mt-2 h-1.5 w-1.5 bg-primary" />
                     <span>{item}</span>
                   </li>
@@ -546,10 +545,10 @@ function AnalysisTab({
           <div className="grid gap-3 md:grid-cols-2">
             {analysis.glosario.map((item, index) => (
               <div key={index} className="war-panel-muted p-4">
-                <p className="font-mono text-xs uppercase tracking-[0.18em] text-[#e5be74]">
+                <p className="tech-label text-amber-700">
                   {item.termino}
                 </p>
-                <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                <p className="mt-3 text-[0.96rem] leading-7 text-muted-foreground">
                   {item.explicacion}
                 </p>
               </div>
@@ -558,12 +557,12 @@ function AnalysisTab({
         </DossierSection>
       )}
 
-      <div className="war-panel-muted flex flex-col gap-3 p-4 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between">
-        <div className="font-mono uppercase tracking-[0.16em]">
+      <div className="war-panel-muted flex flex-col gap-3 p-4 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
+        <div className="font-medium">
           Analizado {new Date(analysis.analyzedAt).toLocaleString("es-ES")}
         </div>
         {analysis.usage && (
-          <div className="flex flex-wrap items-center gap-3 font-mono uppercase tracking-[0.16em]">
+          <div className="flex flex-wrap items-center gap-3 text-sm font-medium">
             <span>{analysis.usage.model}</span>
             <span>{analysis.usage.totalTokens.toLocaleString("es-ES")} tokens</span>
             <span className="text-primary">${analysis.usage.costUsd.toFixed(4)}</span>
@@ -632,7 +631,7 @@ export default function SubastaDetalle({
   if (loadingSubasta) {
     return (
       <div className="min-h-screen bg-background">
-        <div className="flex min-h-screen items-center justify-center font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">
+        <div className="flex min-h-screen items-center justify-center text-sm font-medium text-muted-foreground">
           Cargando dossier
         </div>
       </div>
@@ -646,13 +645,13 @@ export default function SubastaDetalle({
           <div className="flex h-16 w-16 items-center justify-center border border-primary/15 bg-primary/10 text-primary">
             <Gavel className="h-7 w-7" />
           </div>
-          <h1 className="mt-6 text-4xl tracking-[-0.05em]">Subasta no encontrada.</h1>
-          <p className="mt-4 text-sm leading-7 text-muted-foreground">
+          <h1 className="mt-6 text-[1.7rem] font-semibold tracking-[-0.04em]">Subasta no encontrada.</h1>
+          <p className="mt-4 text-[0.98rem] leading-8 text-muted-foreground">
             El expediente solicitado no existe o ya no esta disponible en la base.
           </p>
           <Link
             href="/dashboard"
-            className="mt-8 inline-flex items-center gap-2 bg-primary px-5 py-3 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-primary-foreground"
+            className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
             Volver al dashboard
@@ -674,31 +673,34 @@ export default function SubastaDetalle({
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-30 border-b border-border/40 bg-background/78 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-border/80 bg-background/92 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1500px] flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6 xl:px-8">
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-5">
+            <Link href="/" className="flex items-center gap-3">
+              <BrandMark className="h-10 w-10" />
+              <div>
+                <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">Subasta</p>
+                <p className="tech-label mt-1">Dossier del activo</p>
+              </div>
+            </Link>
+
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-2 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-[#e5be74]"
+              className="inline-flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4" />
               Volver al radar
             </Link>
-            <div className="flex items-center gap-3">
-              <p className="font-heading text-3xl leading-none tracking-[-0.06em] text-primary">
-                Subasta
-              </p>
-              <span className="rounded-full border border-border bg-card px-3 py-1 font-mono text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground">
-                {subasta.identificador || subasta.id}
-              </span>
-            </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground">
+              {subasta.identificador || subasta.id}
+            </span>
             <a href={subasta.url} target="_blank" rel="noopener noreferrer">
               <Button
                 variant="outline"
-                className="h-11 rounded-full border-border bg-card px-4 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-foreground hover:bg-card/80"
+                className="h-11 rounded-2xl border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-card/80"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
                 BOE
@@ -707,7 +709,7 @@ export default function SubastaDetalle({
             <Button
               onClick={handleAnalyze}
               disabled={analyzing}
-              className="h-11 rounded-full bg-primary px-4 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-primary-foreground hover:bg-[#e5be74]"
+              className="h-11 rounded-2xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:brightness-105"
             >
               {analyzing ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -720,62 +722,62 @@ export default function SubastaDetalle({
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1500px] space-y-6 px-4 py-5 md:px-6 xl:px-8 xl:py-8">
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_360px]">
-          <div className="war-panel-strong overflow-hidden p-6 md:p-8 lg:p-10">
-            <span className="section-kicker">Dossier del activo</span>
-            <p className="mt-4 font-mono text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground">
+      <div className="mx-auto max-w-[1500px] space-y-5 px-4 py-5 md:px-6 xl:px-8 xl:py-8">
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+          <div className="war-panel-strong overflow-hidden p-6 md:p-7">
+            <span className="section-kicker">Dossier</span>
+            <p className="mt-4 text-xs font-medium text-muted-foreground">
               {subasta.identificador || subasta.id}
             </p>
-            <h1 className="mt-4 max-w-3xl text-3xl leading-[0.98] tracking-[-0.06em] md:text-[2.8rem] xl:text-[3.25rem]">
+            <h1 className="mt-4 max-w-3xl text-[1.58rem] font-semibold leading-tight tracking-[-0.04em] md:text-[2rem]">
               {displayTitle(subasta)}
             </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground md:text-base">
+            <p className="mt-3 max-w-3xl text-[0.98rem] leading-8 text-muted-foreground">
               {displayMeta(subasta)}
             </p>
-            <p className="mt-4 max-w-4xl text-sm leading-7 text-foreground/90">
+            <p className="mt-4 max-w-4xl text-[0.98rem] leading-8 text-foreground/90">
               {descriptionExcerpt(subasta.descripcion)}
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-2">
-              <span className="signal-chip text-[#e5be74]">
-                {subasta.estado || "Estado no indicado"}
+              <span className="signal-chip text-primary">
+                {smartTitleCase(subasta.estado) || "Estado no indicado"}
               </span>
               {analysis && <RecomendacionBadge rec={analysis.recomendacion} />}
-              <span className="rounded-full border border-border px-3 py-2 font-mono text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground">
-                {subasta.documentos?.length || 0} docs
+              <span className="rounded-full border border-border px-3 py-2 text-xs font-medium text-muted-foreground">
+                {subasta.documentos?.length || 0} documentos
               </span>
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Valor subasta" value={subasta.valorSubasta} accent="blue" />
-              <MetricCard label="Tasacion" value={subasta.tasacion} accent="gold" />
-              <MetricCard label="Puja minima" value={subasta.pujaMinima} accent="blue" />
-              <MetricCard label="Puja actual" value={subasta.pujActual} accent="gold" />
+              <MetricCard label="Valor subasta" value={subasta.valorSubasta} accent="primary" />
+              <MetricCard label="Tasación" value={subasta.tasacion} accent="success" />
+              <MetricCard label="Puja mínima" value={subasta.pujaMinima} accent="primary" />
+              <MetricCard label="Puja actual" value={subasta.pujActual} accent="warning" />
             </div>
           </div>
 
           <div className="space-y-4">
             {analysis ? (
-              <section className="war-panel-strong p-6">
-                <p className="tech-label text-[#e5be74]">Lectura IA</p>
+              <section className="war-panel p-6">
+                <p className="tech-label text-primary">Lectura IA</p>
                 <div className="mt-4">
                   <ScoreBar score={analysis.oportunidad} />
                 </div>
-                <div className="mt-6">
+                <div className="mt-5">
                   <RecomendacionBadge rec={analysis.recomendacion} />
                 </div>
-                <p className="mt-4 text-sm leading-7 text-muted-foreground">
+                <p className="mt-4 text-[0.98rem] leading-8 text-muted-foreground">
                   {analysis.resumen}
                 </p>
               </section>
             ) : (
               <section className="war-panel p-6">
                 <p className="tech-label text-primary">Lectura IA</p>
-                <h2 className="mt-4 text-3xl leading-[0.95] tracking-[-0.05em]">
+                <h2 className="mt-4 text-[1.45rem] font-semibold leading-tight tracking-[-0.04em]">
                   El expediente ya esta listo para analizar.
                 </h2>
-                <p className="mt-4 text-sm leading-7 text-muted-foreground">
+                <p className="mt-4 text-[0.98rem] leading-8 text-muted-foreground">
                   Pulsa el boton de Analizar IA para generar resumen ejecutivo, riesgos,
                   estrategia de puja y lectura economica.
                 </p>
@@ -811,40 +813,40 @@ export default function SubastaDetalle({
             >
               <TabsTrigger
                 value="economics"
-                className="h-11 rounded-full border border-border bg-card px-4 font-mono text-[0.65rem] uppercase tracking-[0.18em] data-active:border-primary/25 data-active:bg-primary/10 data-active:text-primary group-data-[variant=line]/tabs-list:data-active:after:opacity-0"
+                className="h-11 rounded-2xl border border-border bg-card px-4 text-sm font-medium data-active:border-primary/25 data-active:bg-primary/10 data-active:text-primary group-data-[variant=line]/tabs-list:data-active:after:opacity-0"
               >
                 Datos
               </TabsTrigger>
               <TabsTrigger
                 value="bien"
-                className="h-11 rounded-full border border-border bg-card px-4 font-mono text-[0.65rem] uppercase tracking-[0.18em] data-active:border-primary/25 data-active:bg-primary/10 data-active:text-primary group-data-[variant=line]/tabs-list:data-active:after:opacity-0"
+                className="h-11 rounded-2xl border border-border bg-card px-4 text-sm font-medium data-active:border-primary/25 data-active:bg-primary/10 data-active:text-primary group-data-[variant=line]/tabs-list:data-active:after:opacity-0"
               >
                 Bien
               </TabsTrigger>
               <TabsTrigger
                 value="partes"
-                className="h-11 rounded-full border border-border bg-card px-4 font-mono text-[0.65rem] uppercase tracking-[0.18em] data-active:border-primary/25 data-active:bg-primary/10 data-active:text-primary group-data-[variant=line]/tabs-list:data-active:after:opacity-0"
+                className="h-11 rounded-2xl border border-border bg-card px-4 text-sm font-medium data-active:border-primary/25 data-active:bg-primary/10 data-active:text-primary group-data-[variant=line]/tabs-list:data-active:after:opacity-0"
               >
                 Partes
               </TabsTrigger>
               {subasta.documentos && subasta.documentos.length > 0 && (
                 <TabsTrigger
                   value="docs"
-                  className="h-11 rounded-full border border-border bg-card px-4 font-mono text-[0.65rem] uppercase tracking-[0.18em] data-active:border-primary/25 data-active:bg-primary/10 data-active:text-primary group-data-[variant=line]/tabs-list:data-active:after:opacity-0"
+                  className="h-11 rounded-2xl border border-border bg-card px-4 text-sm font-medium data-active:border-primary/25 data-active:bg-primary/10 data-active:text-primary group-data-[variant=line]/tabs-list:data-active:after:opacity-0"
                 >
                   Docs
                 </TabsTrigger>
               )}
               <TabsTrigger
                 value="raw"
-                className="h-11 rounded-full border border-border bg-card px-4 font-mono text-[0.65rem] uppercase tracking-[0.18em] data-active:border-primary/25 data-active:bg-primary/10 data-active:text-primary group-data-[variant=line]/tabs-list:data-active:after:opacity-0"
+                className="h-11 rounded-2xl border border-border bg-card px-4 text-sm font-medium data-active:border-primary/25 data-active:bg-primary/10 data-active:text-primary group-data-[variant=line]/tabs-list:data-active:after:opacity-0"
               >
                 Raw
               </TabsTrigger>
               {(analysis || analyzing) && (
                 <TabsTrigger
                   value="analysis"
-                  className="h-11 rounded-full border border-border bg-card px-4 font-mono text-[0.65rem] uppercase tracking-[0.18em] data-active:border-[#e5be74]/25 data-active:bg-[#e5be74]/10 data-active:text-[#e5be74] group-data-[variant=line]/tabs-list:data-active:after:opacity-0"
+                  className="h-11 rounded-2xl border border-border bg-card px-4 text-sm font-medium data-active:border-emerald-200 data-active:bg-emerald-50 data-active:text-emerald-700 group-data-[variant=line]/tabs-list:data-active:after:opacity-0"
                 >
                   IA
                 </TabsTrigger>
@@ -871,23 +873,23 @@ export default function SubastaDetalle({
             </TabsContent>
 
             <TabsContent value="bien" className="space-y-6 pt-6">
-              <DossierSection title="Descripcion del bien" icon={MapPin}>
+              <DossierSection title="Descripción del bien" icon={MapPin}>
                 {subasta.descripcion && (
-                  <p className="mb-5 text-sm leading-8 text-foreground">{normalizeText(subasta.descripcion)}</p>
+                  <p className="mb-5 text-[0.98rem] leading-8 text-foreground">{smartSentenceCase(subasta.descripcion)}</p>
                 )}
-                <InfoRow label="Direccion" value={subasta.direccion} />
-                <InfoRow label="Codigo postal" value={subasta.codigoPostal} />
+                <InfoRow label="Dirección" value={smartTitleCase(subasta.direccion)} />
+                <InfoRow label="Código postal" value={subasta.codigoPostal} />
                 <InfoRow label="Localidad" value={subasta.localidad} />
                 <InfoRow label="Provincia" value={subasta.provincia} />
                 <InfoRow label="Tipo de bien" value={subasta.tipoBienDetalle} />
                 <InfoRow label="Vivienda habitual" value={subasta.viviendaHabitual} />
-                <InfoRow label="Situacion posesoria" value={subasta.situacionPosesoria} />
+                <InfoRow label="Situación posesoria" value={subasta.situacionPosesoria} />
                 <InfoRow label="Visitable" value={subasta.visitable} />
                 <InfoRow label="Referencia catastral" value={subasta.referenciaCatastral} />
-                <InfoRow label="Inscripcion registral" value={subasta.inscripcionRegistral} />
-                <InfoRow label="CSV certificacion" value={subasta.csvCertificacion} />
+                <InfoRow label="Inscripción registral" value={subasta.inscripcionRegistral} />
+                <InfoRow label="CSV certificación" value={subasta.csvCertificacion} />
                 <InfoRow
-                  label="Info registral electronica"
+                  label="Info registral electrónica"
                   value={subasta.infoRegistralElectronica}
                 />
                 <InfoRow label="Info adicional" value={subasta.infoAdicional} />
@@ -916,7 +918,7 @@ export default function SubastaDetalle({
                     >
                       <Button
                         variant="outline"
-                        className="h-11 rounded-full border-border bg-card font-mono text-[0.65rem] uppercase tracking-[0.18em] text-foreground hover:bg-card/80"
+                        className="h-11 rounded-2xl border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-card/80"
                       >
                         <Map className="h-3.5 w-3.5" />
                         Ver en Maps
@@ -937,7 +939,7 @@ export default function SubastaDetalle({
                       >
                         <Button
                           variant="outline"
-                          className="h-11 rounded-full border-border bg-card font-mono text-[0.65rem] uppercase tracking-[0.18em] text-foreground hover:bg-card/80"
+                          className="h-11 rounded-2xl border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-card/80"
                         >
                           <Landmark className="h-3.5 w-3.5" />
                           Catastro
@@ -974,7 +976,7 @@ export default function SubastaDetalle({
 
             {subasta.documentos && subasta.documentos.length > 0 && (
               <TabsContent value="docs" className="space-y-6 pt-6">
-                <DossierSection title="Documentacion" icon={FileText} accent="gold">
+                <DossierSection title="Documentación" icon={FileText} accent="gold">
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {subasta.documentos.map((doc: Documento, index: number) => (
                       <a
@@ -982,15 +984,15 @@ export default function SubastaDetalle({
                         href={doc.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="war-panel-muted block border-l-2 border-[#e5be74] p-4 transition-colors hover:border-primary"
+                        className="war-panel-muted block border border-border p-4 transition-colors hover:border-primary/30"
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <span className="font-mono text-[0.62rem] uppercase tracking-[0.18em] text-primary">
+                          <span className="tech-label text-primary">
                             Doc {index + 1}
                           </span>
                           <ExternalLink className="h-4 w-4 text-muted-foreground" />
                         </div>
-                        <p className="mt-4 text-sm leading-7 text-foreground">{doc.titulo}</p>
+                        <p className="mt-4 text-[0.98rem] leading-7 text-foreground">{doc.titulo}</p>
                       </a>
                     ))}
                   </div>

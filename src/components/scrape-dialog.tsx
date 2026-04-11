@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
+import { Download, KeyRound, Square, X } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -9,8 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Download, X, KeyRound, Square } from "lucide-react";
 import type { Subasta } from "@/lib/scraper";
 
 interface ScrapeDialogProps {
@@ -35,9 +36,10 @@ export function ScrapeDialog({ onClose, onComplete }: ScrapeDialogProps) {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [scrapedCount, setScrapedCount] = useState(0);
-  const [lastSubasta, setLastSubasta] = useState<string>("");
+  const [lastSubasta, setLastSubasta] = useState("");
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState(false);
+
   const abortRef = useRef<AbortController | null>(null);
   const subastasRef = useRef<Subasta[]>([]);
 
@@ -61,7 +63,7 @@ export function ScrapeDialog({ onClose, onComplete }: ScrapeDialogProps) {
           tipoBien,
           estado,
           provincia,
-          maxPaginas: parseInt(maxPaginas) || 1,
+          maxPaginas: parseInt(maxPaginas, 10) || 1,
           sessionId: sessionId.trim() || undefined,
           stream: true,
         }),
@@ -105,22 +107,20 @@ export function ScrapeDialog({ onClose, onComplete }: ScrapeDialogProps) {
                 setResult(data.error);
               }
             } catch {
-              // JSON parse error, skip
+              // ignore malformed chunk
             }
           }
         }
       }
 
-      // If stream ends without complete event, still deliver what we have
       if (subastasRef.current.length > 0 && !result) {
         setResult(`${subastasRef.current.length} subastas scrapeadas`);
         setTimeout(() => onComplete(subastasRef.current), 800);
       }
     } catch (e) {
       if ((e as Error).name === "AbortError") {
-        // Deliver partial results on cancel
         if (subastasRef.current.length > 0) {
-          setResult(`Cancelado — ${subastasRef.current.length} subastas guardadas`);
+          setResult(`Cancelado - ${subastasRef.current.length} subastas guardadas`);
           setTimeout(() => onComplete(subastasRef.current), 800);
         } else {
           setResult("Scraping cancelado");
@@ -142,67 +142,51 @@ export function ScrapeDialog({ onClose, onComplete }: ScrapeDialogProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="w-full max-w-md mx-4 rounded-xl border border-border/50 bg-card shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-              <Download className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <h2 className="font-bold text-sm">Scrapear BOE</h2>
-              <p className="text-[10px] text-muted-foreground tracking-wide uppercase">
-                subastas.boe.es
-              </p>
-            </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#162032]/24 px-4 backdrop-blur-sm">
+      <div className="war-panel-strong w-full max-w-xl overflow-hidden p-0">
+        <div className="flex items-center justify-between border-b border-border/40 px-6 py-5">
+          <div>
+            <p className="section-kicker">Scrape BOE</p>
+            <h2 className="mt-3 text-[1.45rem] font-semibold tracking-[-0.03em] text-foreground">
+              Nueva captura operativa
+            </h2>
           </div>
           <Button
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="h-8 w-8"
+            className="h-10 w-10 text-muted-foreground hover:bg-card hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </Button>
         </div>
 
-        {/* Form */}
-        <div className="px-6 py-5 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                Tipo
-              </label>
-              <Select
-                value={tipoBien}
-                onValueChange={(v) => v && setTipoBien(v)}
-              >
-                <SelectTrigger className="h-9 text-sm">
+        <div className="space-y-5 p-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="tech-label">Tipo</label>
+              <Select value={tipoBien} onValueChange={(value) => value && setTipoBien(value)}>
+                <SelectTrigger className="h-11 rounded-2xl border-border bg-input text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="inmuebles">Inmuebles</SelectItem>
-                  <SelectItem value="vehiculos">Vehículos</SelectItem>
+                  <SelectItem value="vehiculos">Vehiculos</SelectItem>
                   <SelectItem value="muebles">Muebles</SelectItem>
                   <SelectItem value="todos">Todos</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                Estado
-              </label>
-              <Select
-                value={estado}
-                onValueChange={(v) => v && setEstado(v)}
-              >
-                <SelectTrigger className="h-9 text-sm">
+
+            <div className="space-y-2">
+              <label className="tech-label">Estado</label>
+              <Select value={estado} onValueChange={(value) => value && setEstado(value)}>
+                <SelectTrigger className="h-11 rounded-2xl border-border bg-input text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="celebrandose">Celebrándose</SelectItem>
-                  <SelectItem value="proxima">Próxima</SelectItem>
+                  <SelectItem value="celebrandose">Celebrandose</SelectItem>
+                  <SelectItem value="proxima">Proxima</SelectItem>
                   <SelectItem value="finalizada">Finalizada</SelectItem>
                   <SelectItem value="suspendida">Suspendida</SelectItem>
                   <SelectItem value="todos">Todos</SelectItem>
@@ -211,111 +195,125 @@ export function ScrapeDialog({ onClose, onComplete }: ScrapeDialogProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                Provincia
-              </label>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="tech-label">Provincia</label>
               <Input
                 placeholder="28 = Madrid"
                 value={provincia}
                 onChange={(e) => setProvincia(e.target.value)}
-                className="h-9 text-sm"
+                className="h-11 rounded-2xl border-border bg-input text-sm"
               />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                Páginas
-              </label>
+            <div className="space-y-2">
+              <label className="tech-label">Paginas</label>
               <Input
                 type="number"
                 min="1"
                 max="999"
                 value={maxPaginas}
                 onChange={(e) => setMaxPaginas(e.target.value)}
-                className="h-9 text-sm"
+                className="h-11 rounded-2xl border-border bg-input text-sm"
               />
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase flex items-center gap-1">
-              <KeyRound className="h-3 w-3" />
-              SESSID BOE (opcional)
+          <div className="war-panel-muted p-4">
+            <label className="tech-label flex items-center gap-2">
+              <KeyRound className="h-3.5 w-3.5" />
+              SESSID opcional
             </label>
             <Input
-              placeholder="Cookie de sesión para datos extra"
+              placeholder="Cookie de sesion para documentos"
               value={sessionId}
               onChange={(e) => setSessionId(e.target.value)}
-              className="h-9 text-sm font-mono"
+              className="mt-3 h-11 rounded-2xl border-border bg-input text-sm"
             />
-            <p className="text-[9px] text-muted-foreground">
-              Loguéate en subastas.boe.es y copia la cookie SESSID para acceder a documentos
+            <p className="mt-3 text-xs leading-6 text-muted-foreground">
+              Si quieres acceso documental ampliado, pega la cookie SESSID de
+              subastas.boe.es.
             </p>
           </div>
 
-          {/* Progress monitor */}
           {loading && (scrapedCount > 0 || progress) && (
-            <div className="rounded-md border border-primary/20 bg-primary/5 p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold tracking-widest text-primary uppercase animate-pulse">
-                  Scrapeando en vivo...
-                </span>
-                <span className="text-sm font-mono font-black text-primary tabular-nums">
-                  {scrapedCount}
+            <div className="war-panel p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="tech-label text-primary">Pipeline activo</p>
+                <span className="font-mono text-xs uppercase tracking-[0.14em] text-amber-700">
+                  {scrapedCount} capturas
                 </span>
               </div>
-              {progress && progress.total && (
-                <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                  <div
-                    className="h-full bg-primary rounded-full transition-all duration-300"
-                    style={{
-                      width: `${Math.min((scrapedCount / progress.total) * 100, 100)}%`,
-                    }}
-                  />
+
+              <div className="mt-4 h-2 overflow-hidden bg-muted">
+                <div
+                  className="h-full bg-primary transition-all"
+                  style={{
+                    width:
+                      progress?.total && progress.total > 0
+                        ? `${Math.min(100, (progress.procesadas / progress.total) * 100)}%`
+                        : "12%",
+                  }}
+                />
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {progress && (
+                  <div>
+                    <p className="tech-label">Pagina</p>
+                    <p className="mt-2 font-mono text-lg text-foreground">
+                      {progress.pagina}
+                      {progress.total ? ` / ${progress.total}` : ""}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="tech-label">Ultimo expediente</p>
+                  <p className="mt-2 text-sm font-semibold text-primary">
+                    {lastSubasta || progress?.subastaActual || "Preparando"}
+                  </p>
                 </div>
-              )}
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                <span>
-                  {progress ? `Pág ${progress.pagina}` : "Iniciando..."}
-                  {progress?.total ? ` — ${progress.total} total` : ""}
-                </span>
-                <span className="font-mono truncate ml-2 max-w-[180px] text-primary/70">
-                  {lastSubasta || progress?.subastaActual || ""}
-                </span>
               </div>
             </div>
           )}
 
-          {result && !loading && (
+          {result && (
             <div
-              className={`p-3 rounded-md text-sm font-medium ${
+              className={`border p-4 text-sm leading-7 ${
                 error
-                  ? "bg-destructive/10 text-destructive border border-destructive/20"
-                  : "bg-primary/10 text-primary border border-primary/20"
+                  ? "border-rose-200 bg-rose-50 text-rose-700"
+                  : "border-primary/12 bg-primary/8 text-primary"
               }`}
             >
               {result}
             </div>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-3 md:flex-row">
+            {!loading ? (
+              <Button
+                onClick={handleScrape}
+                className="h-11 flex-1 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground hover:brightness-105"
+              >
+                <Download className="h-4 w-4" />
+                Iniciar scraping
+              </Button>
+            ) : (
+              <Button
+                onClick={handleStop}
+                variant="outline"
+                className="h-11 flex-1 rounded-2xl border-rose-200 bg-rose-50 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+              >
+                <Square className="h-4 w-4" />
+                Detener
+              </Button>
+            )}
+
             <Button
-              onClick={loading ? handleStop : handleScrape}
-              variant={loading ? "destructive" : "default"}
-              className={`flex-1 h-10 font-semibold ${!loading ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}`}
+              variant="outline"
+              onClick={onClose}
+              className="h-11 rounded-2xl border-border bg-card text-sm font-medium text-foreground hover:bg-card/80"
             >
-              {loading ? (
-                <>
-                  <Square className="h-3.5 w-3.5 mr-2" />
-                  Parar
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4 mr-2" />
-                  Iniciar Scraping
-                </>
-              )}
+              Cerrar
             </Button>
           </div>
         </div>
