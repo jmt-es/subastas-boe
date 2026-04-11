@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["cdg1"],
+  "crons": [
+    {
+      "path": "/api/cron/refresh-subastas/03",
+      "schedule": "5 5 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-subastas/30",
+      "schedule": "20 5 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-subastas/02",
+      "schedule": "35 5 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-subastas/46",
+      "schedule": "50 5 * * *"
+    }
+  ]
+}
+

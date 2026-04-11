@@ -1,4 +1,4 @@
-import { MongoClient, Db } from "mongodb";
+import { MongoClient, Db, type Document } from "mongodb";
 
 const DB_NAME = "subastas_boe";
 
@@ -46,6 +46,11 @@ export async function getAnalysisCollection() {
 export async function getDocumentsCollection() {
   const db = await getDb();
   return db.collection("documents");
+}
+
+export async function getRuntimeStateCollection<TSchema extends Document = Document>() {
+  const db = await getDb();
+  return db.collection<TSchema>("runtime_state");
 }
 
 export default getClientPromise;

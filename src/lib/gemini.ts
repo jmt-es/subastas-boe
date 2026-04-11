@@ -1,12 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from "fs";
-import { dirname } from "path";
-import { gzipSync, gunzipSync } from "zlib";
-import { Binary } from "mongodb";
 import type { Subasta } from "./scraper";
 import type { AnalysisResult } from "./storage";
-import { getDocumentsCollection } from "./mongodb";
-import { getPdfCachePath } from "./pdf-cache";
+import { getUsableBoeSession } from "./boe-session-runtime";
+import { getStoredPdfBuffer } from "./document-storage";
 
 function getClient() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -283,82 +279,15 @@ function calculateCost(inputTokens: number, outputTokens: number): number {
   );
 }
 
-function isValidPdf(buf: Buffer): boolean {
-  return buf.length > 500 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46;
-}
-
-// Get PDF base64: check local cache → MongoDB cache → download from BOE
 async function getPdfBase64(
   url: string,
   titulo: string,
   subastaId: string,
   sessionId?: string
 ): Promise<string | null> {
-  const pdfPath = getPdfCachePath(subastaId, url);
-
-  // 1. Check local cache
-  if (existsSync(pdfPath)) {
-    const cached = readFileSync(pdfPath);
-    if (isValidPdf(cached)) return cached.toString("base64");
-    try { unlinkSync(pdfPath); } catch { /* ignore */ }
-  }
-
-  // 2. Check MongoDB cache (for production where local fs is ephemeral)
-  try {
-    const col = await getDocumentsCollection();
-    const cached = await col.findOne({ url });
-    if (cached?.gzipData) {
-      const buf = Buffer.isBuffer(cached.gzipData.buffer)
-        ? cached.gzipData.buffer
-        : Buffer.from(cached.gzipData.buffer);
-      return gunzipSync(buf).toString("base64");
-    }
-  } catch { /* MongoDB not available, continue */ }
-
-  // 3. Download from BOE
-  try {
-    const headers: Record<string, string> = {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      Accept: "application/pdf,*/*",
-    };
-
-    const cookies: string[] = [];
-    if (sessionId) cookies.push(`SESSID=${sessionId}`);
-    const simpleSaml = process.env.BOE_SIMPLESAML;
-    if (simpleSaml) cookies.push(`SimpleSAML=${simpleSaml}`);
-    if (cookies.length > 0) headers["Cookie"] = cookies.join("; ");
-
-    let fetchUrl = url;
-    if (sessionId && url.includes("subastas.boe.es/") && !url.includes("/reg/")) {
-      fetchUrl = url.replace("subastas.boe.es/", "subastas.boe.es/reg/");
-    }
-
-    const resp = await fetch(fetchUrl, { headers, redirect: "follow" });
-    if (!resp.ok) return null;
-
-    const buffer = Buffer.from(await resp.arrayBuffer());
-    if (!isValidPdf(buffer)) return null;
-
-    // Save to local filesystem
-    mkdirSync(dirname(pdfPath), { recursive: true });
-    writeFileSync(pdfPath, buffer);
-
-    // Save to MongoDB (gzip compressed) for production access
-    try {
-      const col = await getDocumentsCollection();
-      const compressed = gzipSync(buffer);
-      await col.updateOne(
-        { url },
-        { $set: { url, subastaId, titulo, gzipData: new Binary(compressed), sizeBytes: buffer.length, compressedBytes: compressed.length, downloadedAt: new Date().toISOString() } },
-        { upsert: true }
-      );
-    } catch { /* ignore MongoDB errors */ }
-
-    return buffer.toString("base64");
-  } catch {
-    return null;
-  }
+  const session = await getUsableBoeSession({ sessionId });
+  const buffer = await getStoredPdfBuffer(url, titulo, subastaId, session);
+  return buffer ? buffer.toString("base64") : null;
 }
 
 export async function analizarSubasta(
@@ -367,9 +296,7 @@ export async function analizarSubasta(
 ): Promise<AnalysisResult> {
   const ai = getClient();
   const prompt = buildPrompt(subasta);
-
-  // Use env var as fallback for BOE session
-  const session = sessionId || process.env.BOE_SESSID;
+  const session = await getUsableBoeSession({ sessionId });
 
   // Build parts: PDFs first, then text prompt
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -379,7 +306,7 @@ export async function analizarSubasta(
   if (subasta.documentos && subasta.documentos.length > 0) {
     const pdfs = await Promise.all(
       subasta.documentos.map((doc) =>
-        getPdfBase64(doc.url, doc.titulo, subasta.id, session)
+        getPdfBase64(doc.url, doc.titulo, subasta.id, session.sessId)
       )
     );
 

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { scrapeSubastas, TIPO_BIEN, ESTADOS } from "@/lib/scraper";
+import { getUsableBoeSession } from "@/lib/boe-session-runtime";
 import { getSubastasCollection } from "@/lib/mongodb";
 
 export const maxDuration = 300;
@@ -25,11 +26,13 @@ export async function POST(request: NextRequest) {
     provincia = "",
     maxPaginas = 1,
     sessionId,
+    simpleSaml,
     stream = false,
   } = body;
 
   const tipoBienCode = TIPO_BIEN[tipoBien] ?? "I";
   const estadoCode = ESTADOS[estado] ?? "EJ";
+  const session = await getUsableBoeSession({ sessionId, simpleSaml });
 
   // Non-streaming mode
   if (!stream) {
@@ -39,7 +42,8 @@ export async function POST(request: NextRequest) {
         estado: estadoCode,
         provincia,
         maxPaginas,
-        sessionId,
+        sessionId: session.sessId,
+        simpleSaml: session.simpleSaml,
       });
 
       // Save to MongoDB
@@ -78,7 +82,8 @@ export async function POST(request: NextRequest) {
             estado: estadoCode,
             provincia,
             maxPaginas,
-            sessionId,
+            sessionId: session.sessId,
+            simpleSaml: session.simpleSaml,
           },
           (progress) => {
             send("progress", progress);

@@ -1,57 +1,38 @@
 import { NextRequest } from "next/server";
-import { existsSync, writeFileSync, mkdirSync } from "fs";
-import { join } from "path";
 import { getSubastasCollection } from "@/lib/mongodb";
-import { PDF_CACHE_DIR, getPdfCachePath } from "@/lib/pdf-cache";
+import { getUsableBoeSession } from "@/lib/boe-session-runtime";
+import {
+  getStoredPdfBuffer,
+  inspectDocumentStorage,
+  isBlobStorageConfigured,
+} from "@/lib/document-storage";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-
-const BOE_HEADERS: Record<string, string> = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-  Accept: "application/pdf,*/*",
-};
 
 async function downloadAndStore(
   url: string,
-  _titulo: string,
+  titulo: string,
   subastaId: string,
-  sessionId: string
+  sessionId?: string
 ): Promise<{ ok: boolean; size: number }> {
-  try {
-    const pdfPath = getPdfCachePath(subastaId, url);
-
-    // Skip if already downloaded
-    if (existsSync(pdfPath)) {
-      return { ok: true, size: 0 };
-    }
-
-    const resp = await fetch(url, {
-      headers: { ...BOE_HEADERS, Cookie: `SESSID=${sessionId}` },
-      redirect: "follow",
-    });
-    if (!resp.ok) return { ok: false, size: 0 };
-
-    const buffer = Buffer.from(await resp.arrayBuffer());
-    if (buffer.length < 500) return { ok: false, size: 0 };
-
-    // Save to local filesystem
-    mkdirSync(join(PDF_CACHE_DIR, subastaId), { recursive: true });
-    writeFileSync(pdfPath, buffer);
-
-    return { ok: true, size: buffer.length };
-  } catch {
-    return { ok: false, size: 0 };
-  }
+  const buffer = await getStoredPdfBuffer(url, titulo, subastaId, {
+    sessId: sessionId,
+  });
+  return { ok: Boolean(buffer), size: buffer?.length ?? 0 };
 }
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
-  const sessionId = body.sessionId || process.env.BOE_SESSID;
+  const session = await getUsableBoeSession({
+    sessionId: body.sessionId,
+    simpleSaml: body.simpleSaml,
+  });
 
-  if (!sessionId) {
+  if (!session.sessId && !isBlobStorageConfigured()) {
     return Response.json(
-      { error: "No BOE session available" },
+      { error: "No BOE session available and Blob storage is not configured" },
       { status: 400 }
     );
   }
@@ -93,14 +74,25 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Check which are already cached locally
-        const pending = allDocs.filter(
-          (d) => !existsSync(getPdfCachePath(d.subastaId, d.url))
+        const storageMode = isBlobStorageConfigured() ? "blob" : "local_or_mongo";
+        const statuses = await Promise.all(
+          allDocs.map(async (doc) => ({
+            doc,
+            status: await inspectDocumentStorage(doc.url, doc.subastaId),
+          }))
         );
+        const pending = statuses
+          .filter(({ status }) =>
+            storageMode === "blob"
+              ? !status.blob
+              : !status.local && !status.mongo
+          )
+          .map(({ doc }) => doc);
 
         send({
           type: "start",
           total: allDocs.length,
+          storageMode,
           cached: allDocs.length - pending.length,
           pending: pending.length,
         });
@@ -116,7 +108,7 @@ export async function POST(request: NextRequest) {
 
           const results = await Promise.all(
             batch.map((d) =>
-              downloadAndStore(d.url, d.titulo, d.subastaId, sessionId)
+              downloadAndStore(d.url, d.titulo, d.subastaId, session.sessId)
             )
           );
 
@@ -135,9 +127,10 @@ export async function POST(request: NextRequest) {
             failed,
             pending: pending.length - downloaded - failed,
             totalSizeMB: (totalSize / 1024 / 1024).toFixed(1),
-            pct: Math.round(
-              ((downloaded + failed) / pending.length) * 100
-            ),
+            pct:
+              pending.length === 0
+                ? 100
+                : Math.round(((downloaded + failed) / pending.length) * 100),
           });
 
           // Small delay between batches to not hammer BOE

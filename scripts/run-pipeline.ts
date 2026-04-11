@@ -3,7 +3,7 @@
  *
  * Usage: npx tsx scripts/run-pipeline.ts
  *
- * Requires .env.local with: GEMINI_API_KEY, MONGODB_URI, BOE_SESSID
+ * Requires .env.local with: GEMINI_API_KEY, MONGODB_URI y BOE_SESSID o BOE_LOGIN_* + Gmail
  */
 
 import { config } from "dotenv";
@@ -17,10 +17,10 @@ import { join } from "path";
 import { MongoClient } from "mongodb";
 import { scrapeSubastas } from "../src/lib/scraper";
 import { analizarSubasta } from "../src/lib/gemini";
+import { getUsableBoeSession } from "../src/lib/boe-session-runtime";
 import type { AnalysisResult } from "../src/lib/storage";
 
 const MONGODB_URI = process.env.MONGODB_URI!;
-const BOE_SESSID = process.env.BOE_SESSID!;
 const DB_NAME = "subastas_boe";
 const DATA_DIR = join(process.cwd(), "data");
 const RESULTS_DIR = join(DATA_DIR, "results");
@@ -68,6 +68,7 @@ async function main() {
   await client.connect();
   let mongoAvailable = true;
   console.log("✅ Connected\n");
+  const session = await getUsableBoeSession();
 
   // 2. Scrape active Alicante auctions with session for full access
   console.log("🔍 Scraping active auctions in Alicante (with session)...");
@@ -77,7 +78,8 @@ async function main() {
       estado: "EJ",
       provincia: "03",
       maxPaginas: 0,
-      sessionId: BOE_SESSID,
+      sessionId: session.sessId,
+      simpleSaml: session.simpleSaml,
     },
     (progress) => {
       console.log(
@@ -148,7 +150,7 @@ async function main() {
       );
 
       try {
-        const analysis = await analizarSubasta(subasta, BOE_SESSID);
+        const analysis = await analizarSubasta(subasta, session.sessId);
 
         allAnalysis[analysis.subastaId] = analysis;
 

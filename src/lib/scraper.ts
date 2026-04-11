@@ -1,4 +1,6 @@
 import * as cheerio from "cheerio";
+import { resolveBoeSession, withBoeRegUrl } from "./boe-session";
+import { parseBoeDateToIso } from "./subasta-dates";
 
 const BASE_URL = "https://subastas.boe.es";
 const BASE_URL_REG = `${BASE_URL}/reg`;
@@ -106,7 +108,9 @@ export interface Subasta {
   estado?: string;
   tipoSubasta?: string;
   fechaInicio?: string;
+  fechaInicioAt?: string;
   fechaConclusion?: string;
+  fechaConclusionAt?: string;
   valorSubasta?: string;
   tasacion?: string;
   pujaMinima?: string;
@@ -223,7 +227,32 @@ function extraerTabla(html: string): Record<string, string> {
   return datos;
 }
 
-function extraerLinksSubastas(html: string): Array<{ id: string; url: string }> {
+function absolutizarUrlBoe(href: string, authenticated: boolean): string {
+  let normalized = href.trim();
+  if (normalized.startsWith("./")) normalized = normalized.slice(2);
+
+  if (normalized.startsWith("http")) {
+    return authenticated ? withBoeRegUrl(normalized, "active") : normalized;
+  }
+
+  if (normalized.startsWith("/")) {
+    if (authenticated && !normalized.startsWith("/reg/")) {
+      return `${BASE_URL}/reg${normalized}`;
+    }
+    return `${BASE_URL}${normalized}`;
+  }
+
+  if (authenticated && !normalized.startsWith("reg/")) {
+    return `${BASE_URL_REG}/${normalized}`;
+  }
+
+  return `${BASE_URL}/${normalized}`;
+}
+
+function extraerLinksSubastas(
+  html: string,
+  authenticated: boolean
+): Array<{ id: string; url: string }> {
   const $ = cheerio.load(html);
   const subastas: Array<{ id: string; url: string }> = [];
 
@@ -236,27 +265,23 @@ function extraerLinksSubastas(html: string): Array<{ id: string; url: string }> 
       clases.includes("resultado-busqueda-link-defecto")
     ) {
       const subastaId = title.replace("Subasta ", "").trim();
-      let href = $(el).attr("href") || "";
-      if (href.startsWith("./")) href = href.slice(2);
-      if (!href.startsWith("http")) href = `${BASE_URL}/${href}`;
-      subastas.push({ id: subastaId, url: href });
+      const href = $(el).attr("href") || "";
+      subastas.push({ id: subastaId, url: absolutizarUrlBoe(href, authenticated) });
     }
   });
 
   return subastas;
 }
 
-function extraerLinkSiguiente(html: string): string | null {
+function extraerLinkSiguiente(html: string, authenticated: boolean): string | null {
   const $ = cheerio.load(html);
   let siguiente: string | null = null;
 
   $("a[href]").each((_, el) => {
     const texto = $(el).text().trim();
     if (texto.toLowerCase().includes("siguiente")) {
-      let href = $(el).attr("href") || "";
-      if (href.startsWith("./")) href = href.slice(2);
-      if (!href.startsWith("http")) href = `${BASE_URL}/${href}`;
-      siguiente = href;
+      const href = $(el).attr("href") || "";
+      siguiente = absolutizarUrlBoe(href, authenticated);
       return false;
     }
   });
@@ -276,7 +301,13 @@ function mapearCampos(raw: Record<string, string>): Partial<Subasta> {
     estado: raw["Estado"],
     tipoSubasta: raw["Tipo de subasta"],
     fechaInicio: raw["Fecha de inicio"] ? parsearFecha(raw["Fecha de inicio"]) : undefined,
+    fechaInicioAt: raw["Fecha de inicio"]
+      ? parseBoeDateToIso(parsearFecha(raw["Fecha de inicio"]))
+      : undefined,
     fechaConclusion: raw["Fecha de conclusión"] ? parsearFecha(raw["Fecha de conclusión"]) : undefined,
+    fechaConclusionAt: raw["Fecha de conclusión"]
+      ? parseBoeDateToIso(parsearFecha(raw["Fecha de conclusión"]))
+      : undefined,
     valorSubasta: raw["Valor subasta"],
     tasacion: raw["Tasación"],
     pujaMinima: raw["Puja mínima"],
@@ -328,7 +359,7 @@ function mapearCampos(raw: Record<string, string>): Partial<Subasta> {
   return result;
 }
 
-function extraerDocumentos(html: string): Documento[] {
+function extraerDocumentos(html: string, authenticated: boolean): Documento[] {
   const $ = cheerio.load(html);
   const docs: Documento[] = [];
 
@@ -342,11 +373,10 @@ function extraerDocumentos(html: string): Documento[] {
       texto &&
       texto !== "*"
     ) {
-      let fullUrl = href;
-      if (!fullUrl.startsWith("http")) {
-        fullUrl = `${BASE_URL}/${fullUrl.replace(/^\.\//, "")}`;
-      }
-      docs.push({ titulo: texto, url: fullUrl });
+      docs.push({
+        titulo: texto,
+        url: absolutizarUrlBoe(href, authenticated),
+      });
     }
   });
 
@@ -370,12 +400,13 @@ function extraerTipoBien(html: string): string | undefined {
 
 async function obtenerDetalleSubasta(
   urlSubasta: string,
-  delayMs: number = 800
+  delayMs: number = 800,
+  authenticated: boolean = false
 ): Promise<{ datos: Record<string, string>; documentos: Documento[] }> {
   const datos: Record<string, string> = { url: urlSubasta };
   const documentos: Documento[] = [];
 
-  let urlBase = urlSubasta;
+  let urlBase = authenticated ? withBoeRegUrl(urlSubasta, "active") : urlSubasta;
   let urlSufijo = "";
   if (urlSubasta.includes("&idBus")) {
     const parts = urlSubasta.split("&idBus");
@@ -404,7 +435,7 @@ async function obtenerDetalleSubasta(
       const tabla = extraerTabla(html);
 
       // Collect documents from ALL tabs
-      const tabDocs = extraerDocumentos(html);
+      const tabDocs = extraerDocumentos(html, authenticated);
       for (const doc of tabDocs) {
         if (!documentos.some((d) => d.url === doc.url)) {
           documentos.push(doc);
@@ -491,6 +522,7 @@ export interface ScrapeOptions {
   maxPaginas?: number;
   delayMs?: number;
   sessionId?: string; // BOE SESSID cookie for logged-in access
+  simpleSaml?: string;
 }
 
 export interface ScrapeProgress {
@@ -513,20 +545,23 @@ export async function scrapeSubastas(
     maxPaginas = 2,
     delayMs = REQUEST_DELAY,
     sessionId,
+    simpleSaml,
   } = options;
+
+  const session = resolveBoeSession({ sessionId, simpleSaml });
+  const isAuthenticated = !!session.sessId;
 
   cookies = [];
   const todasSubastas: Subasta[] = [];
   let pagina = 0;
 
   // Inject session cookie if provided (logged-in access)
-  if (sessionId) {
-    cookies.push(`SESSID=${sessionId}`);
-  }
+  if (session.sessId) cookies.push(`SESSID=${session.sessId}`);
+  if (session.simpleSaml) cookies.push(`SimpleSAML=${session.simpleSaml}`);
 
   // Use /reg/ prefix when logged in to avoid 302 redirect issues on POST
-  const baseUrl = sessionId ? BASE_URL_REG : BASE_URL;
-  const searchUrl = sessionId ? `${BASE_URL_REG}/subastas_ava.php` : SEARCH_URL;
+  const baseUrl = isAuthenticated ? BASE_URL_REG : BASE_URL;
+  const searchUrl = isAuthenticated ? `${BASE_URL_REG}/subastas_ava.php` : SEARCH_URL;
 
   // Init cookies
   await fetchWithCookies(`${baseUrl}/index.php`);
@@ -562,7 +597,7 @@ export async function scrapeSubastas(
 
   while (true) {
     const total = extraerTotalResultados(html);
-    const links = extraerLinksSubastas(html);
+    const links = extraerLinksSubastas(html, isAuthenticated);
 
     if (links.length === 0) break;
 
@@ -589,7 +624,11 @@ export async function scrapeSubastas(
       });
 
       try {
-        const { datos: rawData, documentos } = await obtenerDetalleSubasta(info.url, delayMs);
+        const { datos: rawData, documentos } = await obtenerDetalleSubasta(
+          info.url,
+          delayMs,
+          isAuthenticated
+        );
         const campos = mapearCampos(rawData);
         const subasta: Subasta = {
           id: info.id,
@@ -612,7 +651,7 @@ export async function scrapeSubastas(
     pagina++;
     if (maxPaginas > 0 && pagina >= maxPaginas) break;
 
-    const urlSiguiente = extraerLinkSiguiente(html);
+    const urlSiguiente = extraerLinkSiguiente(html, isAuthenticated);
     if (!urlSiguiente) break;
 
     await delay(delayMs);

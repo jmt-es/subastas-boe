@@ -6,11 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:boe-otp": "tsx scripts/check-boe-otp.ts",
+    "auth:gmail": "tsx scripts/init-gmail-oauth.ts",
+    "backfill:subastas": "tsx scripts/backfill-subasta-dates.ts",
+    "refresh:subastas": "tsx scripts/refresh-active-subastas.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
     "@google/genai": "^1.46.0",
+    "@vercel/blob": "^2.3.3",
     "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

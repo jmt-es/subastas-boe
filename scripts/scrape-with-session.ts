@@ -11,10 +11,10 @@ import { join } from "path";
 import { MongoClient } from "mongodb";
 import { scrapeSubastas } from "../src/lib/scraper";
 import { analizarSubasta } from "../src/lib/gemini";
+import { getUsableBoeSession } from "../src/lib/boe-session-runtime";
 import type { AnalysisResult } from "../src/lib/storage";
 
 const MONGODB_URI = process.env.MONGODB_URI!;
-const BOE_SESSID = process.env.BOE_SESSID!;
 const DB_NAME = "subastas_boe";
 const RESULTS_DIR = join(process.cwd(), "data", "results");
 const BATCH_SIZE = 10;
@@ -30,6 +30,7 @@ async function main() {
   const client = new MongoClient(MONGODB_URI);
   await client.connect();
   const db = client.db(DB_NAME);
+  const session = await getUsableBoeSession();
 
   // 1. Scrape with session
   console.log("🔍 Scraping Alicante with session (docs + pujas)...\n");
@@ -38,7 +39,8 @@ async function main() {
     estado: "EJ",
     provincia: "03",
     maxPaginas: 0,
-    sessionId: BOE_SESSID,
+    sessionId: session.sessId,
+    simpleSaml: session.simpleSaml,
   }, (p) => {
     if (p.subastaActual) console.log(`  [${p.procesadas + 1}] ${p.subastaActual}`);
   });
@@ -79,7 +81,7 @@ async function main() {
     console.log(`  Batch ${Math.floor(i/BATCH_SIZE)+1}...`);
 
     const results = await Promise.allSettled(
-      batch.map(s => analizarSubasta(s, BOE_SESSID))
+      batch.map(s => analizarSubasta(s, session.sessId))
     );
 
     for (let j = 0; j < results.length; j++) {

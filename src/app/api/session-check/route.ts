@@ -1,40 +1,78 @@
+import { isBoePasswordLoginConfigured } from "@/lib/boe-login";
+import { isBoeCaptchaSolverConfigured } from "@/lib/boe-captcha";
+import { hasBoeSession, isBoeSessionActive } from "@/lib/boe-session";
+import { isBoeEmailOtpConfigured } from "@/lib/boe-email-otp";
+import {
+  getCachedBoeSession,
+  getPersistedUsableBoeSession,
+} from "@/lib/boe-session-runtime";
+
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET() {
-  const sessId = process.env.BOE_SESSID;
-  if (!sessId) {
-    return Response.json({ active: false, reason: "no_session" });
+  const autoLoginReady =
+    isBoePasswordLoginConfigured() &&
+    isBoeEmailOtpConfigured() &&
+    isBoeCaptchaSolverConfigured();
+
+  if (hasBoeSession()) {
+    try {
+      const active = await isBoeSessionActive();
+      if (active) {
+        return Response.json({
+          active: true,
+          ready: autoLoginReady,
+          reason: "ok",
+          executionRegion: process.env.VERCEL_REGION ?? null,
+        });
+      }
+    } catch {
+      return Response.json({
+        active: false,
+        ready: autoLoginReady,
+        reason: "error",
+        executionRegion: process.env.VERCEL_REGION ?? null,
+      });
+    }
   }
 
   try {
-    const cookies = [`SESSID=${sessId}`];
-    const simpleSaml = process.env.BOE_SIMPLESAML;
-    if (simpleSaml) cookies.push(`SimpleSAML=${simpleSaml}`);
-
-    const resp = await fetch("https://subastas.boe.es/reg/subastas_ava.php", {
-      headers: {
-        Cookie: cookies.join("; "),
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        Accept: "text/html",
-      },
-      redirect: "manual",
-    });
-
-    // 302 = redirected to login (expired)
-    if (resp.status !== 200) {
-      return Response.json({ active: false, reason: "redirect" });
+    const cached = getCachedBoeSession();
+    if (cached?.sessId) {
+      const active = await isBoeSessionActive(cached);
+      if (active) {
+        return Response.json({
+          active: true,
+          ready: autoLoginReady,
+          reason: "memory_cache",
+          executionRegion: process.env.VERCEL_REGION ?? null,
+        });
+      }
     }
 
-    const html = await resp.text();
+    const stored = await getPersistedUsableBoeSession();
+    if (stored?.sessId) {
+      return Response.json({
+        active: true,
+        ready: autoLoginReady,
+        reason: "persisted_session",
+        executionRegion: process.env.VERCEL_REGION ?? null,
+      });
+    }
 
-    // If logged in, the page contains the search form with "accion" field
-    // If NOT logged in, it shows a "redireccionar" meta refresh or SSO redirect
-    const isLoggedIn =
-      html.includes('name="accion"') || html.includes("Buscar");
-
-    return Response.json({ active: isLoggedIn });
+    return Response.json({
+      active: false,
+      ready: autoLoginReady,
+      reason: autoLoginReady ? "auto_login_ready" : "expired",
+      executionRegion: process.env.VERCEL_REGION ?? null,
+    });
   } catch {
-    return Response.json({ active: false, reason: "error" });
+    return Response.json({
+      active: false,
+      ready: false,
+      reason: "error",
+      executionRegion: process.env.VERCEL_REGION ?? null,
+    });
   }
 }

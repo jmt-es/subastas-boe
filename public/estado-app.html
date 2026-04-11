@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Estado de Subasta BOE</title>
+    <style>
+      :root {
+        --bg: #f3efe6;
+        --paper: rgba(255, 252, 245, 0.78);
+        --ink: #171717;
+        --muted: #625d54;
+        --line: rgba(23, 23, 23, 0.12);
+        --shadow: 0 20px 80px rgba(56, 41, 21, 0.12);
+        --emerald: #0f766e;
+        --amber: #b45309;
+        --crimson: #b91c1c;
+        --navy: #16324f;
+        --gold: #b69246;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(182, 146, 70, 0.18), transparent 28%),
+          radial-gradient(circle at 88% 10%, rgba(15, 118, 110, 0.16), transparent 24%),
+          linear-gradient(180deg, #f7f3eb 0%, #efe8da 100%);
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      .frame {
+        width: min(1180px, calc(100% - 40px));
+        margin: 24px auto 48px;
+      }
+
+      .hero {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background:
+          linear-gradient(140deg, rgba(22, 50, 79, 0.96), rgba(14, 19, 28, 0.94)),
+          #111;
+        box-shadow: var(--shadow);
+        color: #f5f0e8;
+      }
+
+      .hero::before,
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: auto;
+        border-radius: 50%;
+        filter: blur(10px);
+        opacity: 0.6;
+      }
+
+      .hero::before {
+        width: 280px;
+        height: 280px;
+        top: -90px;
+        right: -50px;
+        background: radial-gradient(circle, rgba(182, 146, 70, 0.75), transparent 70%);
+      }
+
+      .hero::after {
+        width: 220px;
+        height: 220px;
+        bottom: -90px;
+        left: -40px;
+        background: radial-gradient(circle, rgba(15, 118, 110, 0.5), transparent 70%);
+      }
+
+      .hero-inner {
+        position: relative;
+        z-index: 1;
+        padding: 34px 34px 28px;
+      }
+
+      .eyebrow {
+        display: inline-block;
+        padding: 8px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        font-size: 12px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+      }
+
+      h1 {
+        margin-top: 18px;
+        max-width: 900px;
+        font-size: clamp(42px, 7vw, 84px);
+        line-height: 0.94;
+      }
+
+      .hero-copy {
+        max-width: 780px;
+        margin-top: 18px;
+        color: rgba(245, 240, 232, 0.82);
+        font-size: 18px;
+        line-height: 1.65;
+      }
+
+      .hero-meta {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 28px;
+      }
+
+      .hero-stat {
+        padding: 16px 18px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.06);
+        backdrop-filter: blur(12px);
+      }
+
+      .hero-stat .k {
+        display: block;
+        color: rgba(245, 240, 232, 0.62);
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .hero-stat .v {
+        display: block;
+        margin-top: 8px;
+        font-size: clamp(24px, 3.2vw, 36px);
+        line-height: 1;
+        font-weight: 700;
+      }
+
+      .hero-stat .s {
+        display: block;
+        margin-top: 8px;
+        color: rgba(245, 240, 232, 0.72);
+        font-size: 13px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1.25fr 0.9fr;
+        gap: 22px;
+        margin-top: 22px;
+      }
+
+      .gauge-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 22px;
+        margin-top: 22px;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: var(--paper);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(16px);
+      }
+
+      .section {
+        padding: 26px 28px;
+      }
+
+      .section + .section {
+        border-top: 1px solid var(--line);
+      }
+
+      .section-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: end;
+        margin-bottom: 16px;
+      }
+
+      .section-kicker {
+        color: var(--muted);
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .section h2 {
+        font-size: 32px;
+        line-height: 1;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .badge.ok {
+        color: var(--emerald);
+        background: rgba(15, 118, 110, 0.1);
+      }
+
+      .badge.warn {
+        color: var(--amber);
+        background: rgba(180, 83, 9, 0.11);
+      }
+
+      .badge.risk {
+        color: var(--crimson);
+        background: rgba(185, 28, 28, 0.1);
+      }
+
+      .summary {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.8;
+      }
+
+      .scoreboard {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 20px;
+      }
+
+      .gauge-card {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        gap: 24px;
+        align-items: center;
+      }
+
+      .ring {
+        --size: 172px;
+        --thickness: 16px;
+        width: var(--size);
+        height: var(--size);
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        position: relative;
+        background: conic-gradient(var(--navy) calc(var(--pct) * 1%), rgba(22, 50, 79, 0.1) 0);
+      }
+
+      .ring::before {
+        content: "";
+        position: absolute;
+        inset: var(--thickness);
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at top, rgba(255, 255, 255, 0.94), rgba(250, 246, 238, 0.92)),
+          #fff;
+        box-shadow: inset 0 0 0 1px rgba(23, 23, 23, 0.06);
+      }
+
+      .ring.strong {
+        background: conic-gradient(var(--emerald) calc(var(--pct) * 1%), rgba(15, 118, 110, 0.1) 0);
+      }
+
+      .ring.weak {
+        background: conic-gradient(var(--amber) calc(var(--pct) * 1%), rgba(180, 83, 9, 0.1) 0);
+      }
+
+      .ring-content {
+        position: relative;
+        z-index: 1;
+        text-align: center;
+      }
+
+      .ring-content .n {
+        display: block;
+        font-size: 46px;
+        line-height: 0.9;
+        font-weight: 800;
+      }
+
+      .ring-content .l {
+        display: block;
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .gauge-copy p {
+        margin: 0 0 14px;
+        font-size: 15px;
+        line-height: 1.75;
+      }
+
+      .mini-breakdown {
+        display: grid;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .mini-breakdown .row {
+        display: grid;
+        grid-template-columns: 1fr 54px;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .mini-breakdown .label {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .mini-breakdown .num {
+        text-align: right;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ink);
+      }
+
+      .mini-breakdown .track {
+        grid-column: 1 / -1;
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(22, 50, 79, 0.08);
+        overflow: hidden;
+      }
+
+      .mini-breakdown .track span {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, rgba(22, 50, 79, 0.92), rgba(14, 118, 110, 0.72));
+      }
+
+      .mini-breakdown .track.warm span {
+        background: linear-gradient(90deg, rgba(180, 83, 9, 0.95), rgba(182, 146, 70, 0.92));
+      }
+
+      .score {
+        padding: 18px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.6);
+      }
+
+      .score .title {
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .score .value {
+        display: block;
+        margin-top: 10px;
+        font-size: 34px;
+        font-weight: 700;
+      }
+
+      .score .note {
+        display: block;
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      ul.clean,
+      ol.clean {
+        margin: 0;
+        padding-left: 20px;
+      }
+
+      ul.clean li,
+      ol.clean li {
+        margin: 10px 0;
+        line-height: 1.65;
+      }
+
+      .timeline {
+        display: grid;
+        gap: 12px;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 98px 1fr;
+        gap: 12px;
+        padding: 14px 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .step:first-child {
+        border-top: 0;
+        padding-top: 0;
+      }
+
+      .step .when {
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .step .what {
+        font-size: 15px;
+        line-height: 1.65;
+      }
+
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .pill {
+        padding: 9px 12px;
+        border-radius: 999px;
+        background: rgba(22, 50, 79, 0.08);
+        color: var(--navy);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .meter {
+        position: relative;
+        overflow: hidden;
+        height: 14px;
+        margin-top: 10px;
+        border-radius: 999px;
+        background: rgba(22, 50, 79, 0.08);
+      }
+
+      .meter span {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--amber), var(--gold));
+      }
+
+      .foot {
+        margin-top: 22px;
+        padding: 18px 22px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.55);
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .foot strong {
+        color: var(--ink);
+      }
+
+      @media (max-width: 980px) {
+        .hero-meta,
+        .grid,
+        .scoreboard,
+        .gauge-grid,
+        .gauge-card {
+          grid-template-columns: 1fr;
+        }
+
+        .step {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .frame {
+          width: min(100% - 24px, 1180px);
+          margin-top: 12px;
+        }
+
+        .hero-inner,
+        .section {
+          padding: 22px 20px;
+        }
+
+        h1 {
+          font-size: 42px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <section class="hero">
+        <div class="hero-inner">
+          <div class="eyebrow">Informe de estado · 8 de abril de 2026</div>
+          <h1>Subasta BOE está viva, útil y aún a medio pulir.</h1>
+          <p class="hero-copy">
+            La app ya funciona como un producto real para explorar subastas, lanzar scraping, ver fichas
+            de detalle y consultar análisis IA. El estado actual encaja mejor con un
+            <strong>MVP funcional</strong> que con una versión cerrada para producción.
+          </p>
+
+          <div class="hero-meta">
+            <div class="hero-stat">
+              <span class="k">Estado general</span>
+              <span class="v">MVP</span>
+              <span class="s">Funcional y usable</span>
+            </div>
+            <div class="hero-stat">
+              <span class="k">Build</span>
+              <span class="v">OK</span>
+              <span class="s">Compila en Next 16</span>
+            </div>
+            <div class="hero-stat">
+              <span class="k">Lint</span>
+              <span class="v">KO</span>
+              <span class="s">4 errores, 8 warnings</span>
+            </div>
+            <div class="hero-stat">
+              <span class="k">Último commit</span>
+              <span class="v">22 Mar</span>
+              <span class="s">`b5c026c` en `main`</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="gauge-grid">
+        <article class="card section">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Barómetro</div>
+              <h2>App funcional</h2>
+            </div>
+            <span class="badge ok">Estimación actual</span>
+          </div>
+          <div class="gauge-card">
+            <div class="ring strong" style="--pct: 72">
+              <div class="ring-content">
+                <span class="n">72%</span>
+                <span class="l">completitud</span>
+              </div>
+            </div>
+            <div class="gauge-copy">
+              <p>
+                Ya cubre el núcleo del producto: listado, detalle, scraping, análisis IA, MongoDB y
+                documentos reales. El porcentaje funcional es alto porque la base ya existe y responde.
+              </p>
+              <div class="mini-breakdown">
+                <div class="row">
+                  <span class="label">UX y flujos principales</span>
+                  <span class="num">85%</span>
+                  <div class="track"><span style="width: 85%"></span></div>
+                </div>
+                <div class="row">
+                  <span class="label">Backend y datos</span>
+                  <span class="num">78%</span>
+                  <div class="track"><span style="width: 78%"></span></div>
+                </div>
+                <div class="row">
+                  <span class="label">Calidad y consistencia</span>
+                  <span class="num">52%</span>
+                  <div class="track"><span style="width: 52%"></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="card section">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Barómetro</div>
+              <h2>Lista para salir como SaaS</h2>
+            </div>
+            <span class="badge warn">Mucho más baja</span>
+          </div>
+          <div class="gauge-card">
+            <div class="ring weak" style="--pct: 37">
+              <div class="ring-content">
+                <span class="n">37%</span>
+                <span class="l">saas-ready</span>
+              </div>
+            </div>
+            <div class="gauge-copy">
+              <p>
+                Como producto interno o beta cerrada va bien. Como SaaS público todavía faltan piezas de
+                plataforma: auth, cuentas, roles, billing, soporte, observabilidad y hardening.
+              </p>
+              <div class="mini-breakdown">
+                <div class="row">
+                  <span class="label">Producto núcleo</span>
+                  <span class="num">75%</span>
+                  <div class="track warm"><span style="width: 75%"></span></div>
+                </div>
+                <div class="row">
+                  <span class="label">Auth, usuarios y permisos</span>
+                  <span class="num">8%</span>
+                  <div class="track warm"><span style="width: 8%"></span></div>
+                </div>
+                <div class="row">
+                  <span class="label">Billing, soporte y operaciones</span>
+                  <span class="num">18%</span>
+                  <div class="track warm"><span style="width: 18%"></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <div class="grid">
+        <article class="card">
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <div class="section-kicker">Lectura ejecutiva</div>
+                <h2>Qué hay ya</h2>
+              </div>
+              <span class="badge ok">Estado operativo</span>
+            </div>
+            <p class="summary">
+              Existe una experiencia completa de dashboard y detalle, con backend, scraping, sesión BOE,
+              análisis con Gemini y persistencia en MongoDB. La app arranca, responde por API y tiene
+              datos reales cargados; no es una demo vacía.
+            </p>
+            <div class="pill-row">
+              <span class="pill">Dashboard con filtros</span>
+              <span class="pill">Detalle por subasta</span>
+              <span class="pill">Scraping en vivo</span>
+              <span class="pill">Favoritos locales</span>
+              <span class="pill">Análisis IA</span>
+              <span class="pill">Descarga de PDFs</span>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <div class="section-kicker">Pruebas realizadas</div>
+                <h2>Verificación</h2>
+              </div>
+              <span class="badge warn">Sin tests automáticos</span>
+            </div>
+            <div class="timeline">
+              <div class="step">
+                <div class="when">Git</div>
+                <div class="what">Árbol limpio en <strong>`main`</strong>, sin cambios locales pendientes.</div>
+              </div>
+              <div class="step">
+                <div class="when">Build</div>
+                <div class="what">`npm run build` pasa correctamente en local.</div>
+              </div>
+              <div class="step">
+                <div class="when">Servidor</div>
+                <div class="what">`npm run dev` levanta y responde `200` en `/`.</div>
+              </div>
+              <div class="step">
+                <div class="when">API</div>
+                <div class="what">Responden `/api/subastas`, `/api/analysis` y `/api/session-check`.</div>
+              </div>
+              <div class="step">
+                <div class="when">BOE</div>
+                <div class="what">La sesión actual se detectó como inactiva o redirigida.</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <div class="section-kicker">Deuda técnica</div>
+                <h2>Lo que falla hoy</h2>
+              </div>
+              <span class="badge risk">Hay trabajo pendiente</span>
+            </div>
+            <ul class="clean">
+              <li><strong>Lint roto:</strong> 4 errores y 8 warnings.</li>
+              <li><strong>Pureza de render:</strong> se usa `Date.now()` dentro del render del dashboard.</li>
+              <li><strong>Compatibilidad Next 16:</strong> hay warnings por `themeColor` y `viewport` en metadata.</li>
+              <li><strong>Sesión BOE efímera:</strong> las cookies guardadas desde la UI viven en memoria del proceso.</li>
+              <li><strong>Desalineación de datos:</strong> hay más análisis en disco que en MongoDB, así que la UI muestra menos de los esperables.</li>
+              <li><strong>Huecos SaaS:</strong> no aparecen auth, cuentas, roles, billing ni multi-tenant en el repo.</li>
+              <li><strong>Setup incompleto:</strong> `.env.example` no refleja todas las variables que el README sí pide.</li>
+              <li><strong>Tests:</strong> no hay suite automatizada real; solo un script manual de scraping.</li>
+            </ul>
+          </section>
+        </article>
+
+        <aside class="card">
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <div class="section-kicker">Datos reales</div>
+                <h2>Volumen actual</h2>
+              </div>
+              <span class="badge ok">No es maqueta</span>
+            </div>
+            <div class="scoreboard">
+              <div class="score">
+                <span class="title">Subastas en MongoDB</span>
+                <span class="value">238</span>
+                <span class="note">Disponibles vía `/api/subastas`.</span>
+              </div>
+              <div class="score">
+                <span class="title">Análisis en MongoDB</span>
+                <span class="value">133</span>
+                <span class="note">Son los que hoy ve el dashboard.</span>
+              </div>
+              <div class="score">
+                <span class="title">Análisis en disco</span>
+                <span class="value">233</span>
+                <span class="note">Guardados en `data/results/analysis.json`.</span>
+              </div>
+              <div class="score">
+                <span class="title">PDFs locales</span>
+                <span class="value">602</span>
+                <span class="note">Cache de documentos del BOE.</span>
+              </div>
+            </div>
+            <div style="margin-top: 18px">
+              <div class="section-kicker">Peso local de documentos</div>
+              <div class="meter" aria-hidden="true"><span style="width: 78%"></span></div>
+              <p class="summary" style="margin-top: 10px; font-size: 14px">
+                `data/pdfs` ocupa aproximadamente <strong>1.3 GB</strong>.
+              </p>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <div class="section-kicker">Lectura honesta</div>
+                <h2>Diagnóstico</h2>
+              </div>
+              <span class="badge warn">Producto en transición</span>
+            </div>
+            <p class="summary" style="font-size: 15px">
+              La base está bien encaminada: scraping, almacenamiento, análisis y UI ya conviven.
+              Lo que falta no es “empezar”, sino cerrar bien la capa operativa y quitar deuda.
+            </p>
+            <ol class="clean" style="margin-top: 14px">
+              <li>La app ya aporta valor y por eso el porcentaje funcional es alto.</li>
+              <li>El porcentaje SaaS baja mucho por ausencia de capa comercial y de operación.</li>
+              <li>Hay inconsistencias entre dataset local, MongoDB, setup y calidad estática.</li>
+            </ol>
+          </section>
+
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <div class="section-kicker">Siguiente fase</div>
+                <h2>Prioridades</h2>
+              </div>
+              <span class="badge ok">Accionable</span>
+            </div>
+            <ol class="clean">
+              <li>Dejar `lint` en verde y eliminar warnings de metadata.</li>
+              <li>Persistir cookies BOE de forma estable y no solo en memoria.</li>
+              <li>Sincronizar `analysis.json` con MongoDB o eliminar una de las fuentes de verdad.</li>
+              <li>Meter auth, usuarios, permisos y una primera capa de cuentas.</li>
+              <li>Definir billing o al menos planes y límites de uso antes de hablar de SaaS abierto.</li>
+              <li>Añadir tests mínimos para API, scraper y flujos críticos.</li>
+              <li>Actualizar README y `.env.example` para que el onboarding no falle.</li>
+            </ol>
+          </section>
+        </aside>
+      </div>
+
+      <div class="foot">
+        <strong>Conclusión:</strong> Subasta BOE está en un punto bueno para iterar rápido: ya enseña valor real,
+        pero aún no está “cerrada”. Si el siguiente objetivo es volverla fiable, el foco debería estar en
+        calidad técnica, persistencia de sesión y consolidación de datos.
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,14 +1,16 @@
 import { NextRequest } from "next/server";
 import { getSubastasCollection } from "@/lib/mongodb";
-import { getActiveSubastasFilter } from "@/lib/subasta-dates";
+import { getActiveSubastasFilter, isSubastaActive } from "@/lib/subasta-dates";
+import { loadSubastasSnapshot } from "@/lib/result-snapshots";
+import type { Subasta } from "@/lib/scraper";
 
 // GET — fetch all subastas (with optional search)
 export async function GET(request: NextRequest) {
-  const col = await getSubastasCollection();
   const search = request.nextUrl.searchParams.get("q");
   const includeHistorical = request.nextUrl.searchParams.get("all") === "1";
   const limit = parseInt(request.nextUrl.searchParams.get("limit") || "0");
 
+  let subastas: Subasta[] = [];
   const filters: Record<string, unknown>[] = [];
   if (!includeHistorical) {
     filters.push(getActiveSubastasFilter());
@@ -33,9 +35,39 @@ export async function GET(request: NextRequest) {
         ? filters[0]
         : { $and: filters };
 
-  const cursor = col.find(filter).sort({ scrapedAt: -1 });
-  if (limit > 0) cursor.limit(limit);
-  const subastas = await cursor.toArray();
+  try {
+    const col = await getSubastasCollection();
+    const cursor = col.find(filter).sort({ scrapedAt: -1 });
+    if (limit > 0) cursor.limit(limit);
+    subastas = await cursor.toArray() as unknown as Subasta[];
+  } catch {
+    const snapshot = await loadSubastasSnapshot();
+    subastas = snapshot || [];
+
+    if (!includeHistorical) {
+      subastas = subastas.filter((subasta) => isSubastaActive(subasta));
+    }
+
+    if (search) {
+      const query = search.toLowerCase();
+      subastas = subastas.filter((subasta) =>
+        [
+          subasta.descripcion,
+          subasta.direccion,
+          subasta.localidad,
+          subasta.provincia,
+          subasta.id,
+        ]
+          .filter(Boolean)
+          .some((value) => value!.toLowerCase().includes(query))
+      );
+    }
+
+    subastas.sort((a, b) => b.scrapedAt.localeCompare(a.scrapedAt));
+    if (limit > 0) {
+      subastas = subastas.slice(0, limit);
+    }
+  }
 
   return Response.json({ subastas, count: subastas.length });
 }
