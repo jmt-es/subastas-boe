@@ -1,15 +1,21 @@
 import { NextRequest } from "next/server";
 import { getSubastasCollection } from "@/lib/mongodb";
+import { getActiveSubastasFilter } from "@/lib/subasta-dates";
 
 // GET — fetch all subastas (with optional search)
 export async function GET(request: NextRequest) {
   const col = await getSubastasCollection();
   const search = request.nextUrl.searchParams.get("q");
+  const includeHistorical = request.nextUrl.searchParams.get("all") === "1";
   const limit = parseInt(request.nextUrl.searchParams.get("limit") || "0");
 
-  let filter = {};
+  const filters: Record<string, unknown>[] = [];
+  if (!includeHistorical) {
+    filters.push(getActiveSubastasFilter());
+  }
+
   if (search) {
-    filter = {
+    filters.push({
       $or: [
         { descripcion: { $regex: search, $options: "i" } },
         { direccion: { $regex: search, $options: "i" } },
@@ -17,8 +23,15 @@ export async function GET(request: NextRequest) {
         { provincia: { $regex: search, $options: "i" } },
         { id: { $regex: search, $options: "i" } },
       ],
-    };
+    });
   }
+
+  const filter =
+    filters.length === 0
+      ? {}
+      : filters.length === 1
+        ? filters[0]
+        : { $and: filters };
 
   const cursor = col.find(filter).sort({ scrapedAt: -1 });
   if (limit > 0) cursor.limit(limit);

@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 900" fill="none">
+  <rect width="1240" height="900" rx="40" fill="#F5F1EA"/>
+  <rect x="64" y="64" width="1112" height="772" rx="34" fill="#FFFDF9" stroke="#D9D1C4" stroke-width="2"/>
+  <rect x="108" y="108" width="1024" height="72" rx="24" fill="#163057"/>
+  <circle cx="156" cy="144" r="20" fill="#F5F1EA"/>
+  <circle cx="156" cy="144" r="10" fill="#163057"/>
+  <path d="M192 130H330" stroke="#F5F1EA" stroke-width="8" stroke-linecap="round"/>
+  <path d="M192 152H274" stroke="#8FA7CC" stroke-width="6" stroke-linecap="round"/>
+  <rect x="896" y="124" width="184" height="40" rx="20" fill="#24497E"/>
+  <path d="M930 144H957" stroke="#F5F1EA" stroke-width="5" stroke-linecap="round"/>
+  <path d="M976 144H1046" stroke="#AFC1DE" stroke-width="5" stroke-linecap="round"/>
+
+  <rect x="108" y="220" width="556" height="520" rx="28" fill="#FBF8F3" stroke="#D9D1C4"/>
+  <text x="144" y="270" fill="#163057" font-family="system-ui, sans-serif" font-size="22" font-weight="700">Radar diario</text>
+  <text x="144" y="304" fill="#667085" font-family="system-ui, sans-serif" font-size="16">Ultimos expedientes capturados y listos para abrir</text>
+
+  <rect x="144" y="340" width="484" height="104" rx="24" fill="#FFFFFF" stroke="#D7D0C3"/>
+  <text x="176" y="376" fill="#667085" font-family="system-ui, sans-serif" font-size="14" font-weight="600">SUB-JA-2026-259559</text>
+  <text x="176" y="410" fill="#163057" font-family="system-ui, sans-serif" font-size="28" font-weight="700">Plaza de aparcamiento en Murcia</text>
+  <text x="176" y="435" fill="#667085" font-family="system-ui, sans-serif" font-size="16">Murcia · Judicial · 13.390 €</text>
+  <rect x="516" y="364" width="80" height="30" rx="15" fill="#EEF4FF"/>
+  <text x="538" y="384" fill="#274B8B" font-family="system-ui, sans-serif" font-size="14" font-weight="700">82/100</text>
+  <rect x="516" y="404" width="80" height="26" rx="13" fill="#EAF6EF"/>
+  <text x="536" y="422" fill="#25604B" font-family="system-ui, sans-serif" font-size="13" font-weight="700">Comprar</text>
+
+  <rect x="144" y="462" width="484" height="104" rx="24" fill="#FFFFFF" stroke="#D7D0C3"/>
+  <text x="176" y="498" fill="#667085" font-family="system-ui, sans-serif" font-size="14" font-weight="600">SUB-JA-2026-259349</text>
+  <text x="176" y="532" fill="#163057" font-family="system-ui, sans-serif" font-size="28" font-weight="700">Vivienda en Guardamar</text>
+  <text x="176" y="557" fill="#667085" font-family="system-ui, sans-serif" font-size="16">Alicante · Judicial · 195.100 €</text>
+  <rect x="516" y="486" width="80" height="30" rx="15" fill="#EEF4FF"/>
+  <text x="538" y="506" fill="#274B8B" font-family="system-ui, sans-serif" font-size="14" font-weight="700">76/100</text>
+  <rect x="516" y="526" width="80" height="26" rx="13" fill="#FFF5E6"/>
+  <text x="534" y="544" fill="#B7791F" font-family="system-ui, sans-serif" font-size="13" font-weight="700">Observar</text>
+
+  <rect x="144" y="584" width="484" height="120" rx="24" fill="#163057"/>
+  <text x="176" y="622" fill="#F5F1EA" font-family="system-ui, sans-serif" font-size="14" font-weight="600">Resumen horario</text>
+  <text x="176" y="664" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="42" font-weight="700">Radar activo</text>
+  <text x="176" y="692" fill="#AFC1DE" font-family="system-ui, sans-serif" font-size="16">Ultimos expedientes · dossier enlazado · resumen horario</text>
+  <rect x="480" y="612" width="116" height="54" rx="22" fill="#24497E"/>
+  <text x="512" y="645" fill="#F5F1EA" font-family="system-ui, sans-serif" font-size="18" font-weight="700">Radar</text>
+
+  <rect x="704" y="220" width="428" height="328" rx="28" fill="#FFFDF9" stroke="#D9D1C4"/>
+  <text x="740" y="270" fill="#163057" font-family="system-ui, sans-serif" font-size="22" font-weight="700">Dossier enlazado</text>
+  <text x="740" y="304" fill="#667085" font-family="system-ui, sans-serif" font-size="16">Lectura clara, valor, riesgo y documentos sin ruido</text>
+  <rect x="740" y="336" width="356" height="176" rx="22" fill="#F7F2EA" stroke="#E0D8CB"/>
+  <text x="772" y="374" fill="#667085" font-family="system-ui, sans-serif" font-size="14" font-weight="600">Plaza de aparcamiento en Murcia</text>
+  <text x="772" y="422" fill="#163057" font-family="system-ui, sans-serif" font-size="56" font-weight="700">82</text>
+  <text x="852" y="422" fill="#667085" font-family="system-ui, sans-serif" font-size="22" font-weight="600">/100</text>
+  <rect x="772" y="446" width="110" height="30" rx="15" fill="#EAF6EF"/>
+  <text x="800" y="466" fill="#25604B" font-family="system-ui, sans-serif" font-size="14" font-weight="700">Comprar</text>
+  <rect x="896" y="446" width="132" height="30" rx="15" fill="#EEF4FF"/>
+  <text x="928" y="466" fill="#274B8B" font-family="system-ui, sans-serif" font-size="14" font-weight="700">3 docs</text>
+  <text x="772" y="502" fill="#163057" font-family="system-ui, sans-serif" font-size="16" font-weight="600">Valor subasta 13.390 €</text>
+  <text x="772" y="528" fill="#667085" font-family="system-ui, sans-serif" font-size="15">Tasacion 19.850 € · Riesgo posesorio contenido</text>
+
+  <rect x="704" y="570" width="204" height="170" rx="28" fill="#163057"/>
+  <text x="736" y="614" fill="#F5F1EA" font-family="system-ui, sans-serif" font-size="18" font-weight="700">Radar IA</text>
+  <circle cx="806" cy="666" r="58" stroke="#4D6792" stroke-width="2"/>
+  <circle cx="806" cy="666" r="38" stroke="#4D6792" stroke-width="2"/>
+  <circle cx="806" cy="666" r="18" stroke="#4D6792" stroke-width="2"/>
+  <path d="M806 666L840 638" stroke="#C6A15B" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="840" cy="638" r="6" fill="#C6A15B"/>
+  <circle cx="806" cy="666" r="7" fill="#F5F1EA"/>
+
+  <rect x="928" y="570" width="204" height="170" rx="28" fill="#FBF8F3" stroke="#D9D1C4"/>
+  <text x="960" y="614" fill="#163057" font-family="system-ui, sans-serif" font-size="18" font-weight="700">Cierres proximos</text>
+  <rect x="960" y="638" width="140" height="34" rx="17" fill="#FFF5E6"/>
+  <text x="986" y="660" fill="#B7791F" font-family="system-ui, sans-serif" font-size="14" font-weight="700">3 dias</text>
+  <text x="960" y="700" fill="#163057" font-family="system-ui, sans-serif" font-size="16" font-weight="600">Guardamar · Vivienda</text>
+  <text x="960" y="724" fill="#667085" font-family="system-ui, sans-serif" font-size="15">Alicante · Valor 195.100 €</text>
+</svg>
