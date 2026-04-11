@@ -720,24 +720,24 @@ export default function SubastaDetalle({
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1500px] space-y-6 px-4 py-6 md:px-6 xl:px-8 xl:py-10">
+      <div className="mx-auto max-w-[1500px] space-y-6 px-4 py-5 md:px-6 xl:px-8 xl:py-8">
         <section className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_360px]">
           <div className="war-panel-strong overflow-hidden p-6 md:p-8 lg:p-10">
             <span className="section-kicker">Dossier del activo</span>
             <p className="mt-4 font-mono text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground">
               {subasta.identificador || subasta.id}
             </p>
-            <h1 className="mt-4 max-w-4xl text-4xl leading-[0.92] tracking-[-0.07em] md:text-6xl xl:text-7xl">
+            <h1 className="mt-4 max-w-3xl text-3xl leading-[0.98] tracking-[-0.06em] md:text-[2.8rem] xl:text-[3.25rem]">
               {displayTitle(subasta)}
             </h1>
-            <p className="mt-4 max-w-3xl text-base leading-8 text-muted-foreground md:text-lg">
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground md:text-base">
               {displayMeta(subasta)}
             </p>
-            <p className="mt-6 max-w-4xl text-sm leading-8 text-foreground/90 md:text-base">
+            <p className="mt-4 max-w-4xl text-sm leading-7 text-foreground/90">
               {descriptionExcerpt(subasta.descripcion)}
             </p>
 
-            <div className="mt-6 flex flex-wrap items-center gap-2">
+            <div className="mt-5 flex flex-wrap items-center gap-2">
               <span className="signal-chip text-[#e5be74]">
                 {subasta.estado || "Estado no indicado"}
               </span>
@@ -747,7 +747,7 @@ export default function SubastaDetalle({
               </span>
             </div>
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <MetricCard label="Valor subasta" value={subasta.valorSubasta} accent="blue" />
               <MetricCard label="Tasacion" value={subasta.tasacion} accent="gold" />
               <MetricCard label="Puja minima" value={subasta.pujaMinima} accent="blue" />

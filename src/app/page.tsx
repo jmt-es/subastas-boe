@@ -138,24 +138,21 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <section className="relative px-4 pb-10 pt-32 md:px-6 md:pb-16 md:pt-40">
+      <section className="relative px-4 pb-10 pt-28 md:px-6 md:pb-14 md:pt-34">
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.08fr_0.92fr]">
           <div className="relative z-10">
             <span className="section-kicker">Mesa de control</span>
-            <h1 className="mt-6 max-w-5xl text-5xl leading-[0.88] tracking-[-0.07em] text-foreground md:text-7xl lg:text-8xl">
-              La inteligencia
-              <br />
-              juridica que decide
-              <br />
-              <span className="text-[#e5be74]">antes que la puja.</span>
+            <h1 className="mt-5 max-w-4xl text-4xl leading-[0.94] tracking-[-0.06em] text-foreground md:text-5xl lg:text-[4.5rem]">
+              Inteligencia juridica para decidir subastas
+              <span className="text-[#e5be74]"> con criterio.</span>
             </h1>
-            <p className="mt-8 max-w-2xl text-lg leading-8 text-muted-foreground md:text-xl">
+            <p className="mt-6 max-w-2xl text-base leading-8 text-muted-foreground md:text-lg">
               Subasta convierte el BOE en una sala de evidencias para
               inversores: captura, puntua, documenta y prepara cada caso como un
               dossier de decision.
             </p>
 
-            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/dashboard"
                 className="inline-flex items-center justify-center gap-3 bg-primary px-7 py-4 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-primary-foreground transition-all hover:bg-[#e5be74]"
@@ -171,7 +168,7 @@ export default function LandingPage() {
               </a>
             </div>
 
-            <div className="mt-12 grid gap-4 sm:grid-cols-3">
+            <div className="mt-10 grid gap-4 sm:grid-cols-3">
               {heroStats.map((item) => (
                 <div key={item.label} className="war-panel-muted p-4">
                   <p className="tech-label">{item.label}</p>

@@ -240,7 +240,7 @@ function OverviewStat({
   return (
     <div className="war-panel-muted p-4 md:p-5">
       <p className="tech-label">{label}</p>
-      <p className={`mt-3 font-mono text-3xl font-semibold tracking-[-0.06em] md:text-4xl ${accent}`}>
+      <p className={`mt-3 font-mono text-2xl font-semibold tracking-[-0.06em] md:text-3xl ${accent}`}>
         {value}
       </p>
       {hint && <p className="mt-2 text-xs leading-6 text-muted-foreground">{hint}</p>}
@@ -283,7 +283,7 @@ function AuctionCard({
 
           <Link
             href={`/subastas/${encodeURIComponent(subasta.id)}`}
-            className="mt-5 block font-heading text-3xl leading-[0.95] tracking-[-0.05em] transition-colors hover:text-primary md:text-4xl"
+            className="mt-5 block font-heading text-[1.8rem] leading-[0.98] tracking-[-0.05em] transition-colors hover:text-primary md:text-[2.2rem]"
           >
             {displayTitle(subasta)}
           </Link>
@@ -762,17 +762,17 @@ function DashboardContent() {
         <section className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_360px]">
           <div className="war-panel-strong overflow-hidden p-6 md:p-8 lg:p-10">
             <span className="section-kicker">Radar operativo</span>
-            <div className="mt-6 max-w-4xl">
-              <h1 className="text-4xl leading-[0.92] tracking-[-0.07em] md:text-6xl xl:text-7xl">
-                Una interfaz clara para filtrar, leer y priorizar sin pelearte con el BOE.
+            <div className="mt-4 max-w-3xl">
+              <h1 className="text-3xl leading-[0.96] tracking-[-0.06em] md:text-[2.9rem] xl:text-[3.35rem]">
+                Un radar claro para filtrar, leer y priorizar sin pelearte con el BOE.
               </h1>
-              <p className="mt-5 max-w-3xl text-base leading-8 text-muted-foreground md:text-lg">
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground md:text-base">
                 Aqui trabajas con expedientes reales, shortlist, cierres proximos y lectura IA
                 en una sola superficie. Menos columnas asfixiadas, mas contexto util.
               </p>
             </div>
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <OverviewStat
                 label="Expedientes"
                 value={String(stats.total)}
@@ -814,13 +814,13 @@ function DashboardContent() {
                   </div>
                 </div>
 
-                <h2 className="mt-5 text-3xl leading-[0.94] tracking-[-0.05em] md:text-4xl">
+                <h2 className="mt-4 text-[1.9rem] leading-[0.98] tracking-[-0.05em] md:text-[2.35rem]">
                   {displayTitle(insightSummary.topSubasta)}
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                <p className="mt-2 text-sm leading-7 text-muted-foreground">
                   {displayMeta(insightSummary.topSubasta)}
                 </p>
-                <p className="mt-4 text-sm leading-7 text-foreground/90">
+                <p className="mt-3 text-sm leading-7 text-foreground/90">
                   {descriptionExcerpt(insightSummary.topSubasta, 165)}
                 </p>
 
