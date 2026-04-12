@@ -4,17 +4,20 @@ import { loadAnalysisSnapshot } from "@/lib/result-snapshots";
 
 // GET — get analysis by subastaId or all
 export async function GET(request: NextRequest) {
+  const wantsAll = request.nextUrl.searchParams.has("all");
+
   try {
     const col = await getAnalysisCollection();
 
     // Return all analyses (for dashboard IA scores)
-    if (request.nextUrl.searchParams.get("all")) {
+    if (wantsAll) {
       const all = await col
         .find({}, { projection: { subastaId: 1, oportunidad: 1, recomendacion: 1, _id: 0 } })
         .toArray();
       if (all.length > 0) {
         return Response.json(all);
       }
+      throw new Error("Analysis summary not found in MongoDB");
     }
 
     const subastaId = request.nextUrl.searchParams.get("subastaId");
@@ -33,7 +36,7 @@ export async function GET(request: NextRequest) {
     const allAnalysis = await loadAnalysisSnapshot();
 
     // Return all analyses (for dashboard IA scores)
-    if (request.nextUrl.searchParams.get("all")) {
+    if (wantsAll) {
       const summary = (allAnalysis || []).map((analysis) => ({
         subastaId: analysis.subastaId,
         oportunidad: analysis.oportunidad,
