@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/brand-mark";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { buildDashboardHrefFromSearchParamsObject } from "@/lib/dashboard-search-params";
 import {
   formatCurrency,
   normalizeText,
@@ -618,16 +619,20 @@ function AnalysisTab({
 
 export default function SubastaDetalle({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { id } = use(params);
+  const currentSearchParams = use(searchParams);
   const { getAnalysis } = useAnalysis();
   const [subasta, setSubasta] = useState<Subasta | null>(null);
   const [loadingSubasta, setLoadingSubasta] = useState(true);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const dashboardHref = buildDashboardHrefFromSearchParamsObject(currentSearchParams);
 
   useEffect(() => {
     const decodedId = decodeURIComponent(id);
@@ -693,7 +698,7 @@ export default function SubastaDetalle({
             El expediente solicitado no existe o ya no esta disponible en la base.
           </p>
           <Link
-            href="/dashboard"
+            href={dashboardHref}
             className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -728,7 +733,7 @@ export default function SubastaDetalle({
             </Link>
 
             <Link
-              href="/dashboard"
+              href={dashboardHref}
               className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:w-auto sm:justify-start"
             >
               <ArrowLeft className="h-4 w-4" />

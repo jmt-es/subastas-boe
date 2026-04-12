@@ -47,12 +47,19 @@ import {
   smartSentenceCase,
   smartTitleCase,
 } from "@/lib/subasta-presenters";
+import {
+  buildSubastaDetailHref,
+  parseDashboardRecommendationFilter,
+  parseDashboardSortMode,
+} from "@/lib/dashboard-search-params";
 import type { Subasta } from "@/lib/scraper";
 import { useSubastas } from "@/lib/use-subastas";
 
 const PAGE_SIZE = 25;
 
 type ViewMode = "list" | "cards";
+type SortMode = "" | "ia" | "descuento";
+type RecommendationFilter = "" | "comprar" | "observar" | "descartar";
 
 function calcDescuento(valorSubasta?: string, tasacion?: string): number | null {
   const v = parseAmountNumber(valorSubasta);
@@ -233,11 +240,13 @@ function RailCard({
 
 function AuctionListRow({
   subasta,
+  detailHref,
   analysis,
   isFavorite,
   onToggleFavorite,
 }: {
   subasta: Subasta;
+  detailHref: string;
   analysis?: AnalysisResult;
   isFavorite: boolean;
   onToggleFavorite: (id: string) => void;
@@ -263,7 +272,7 @@ function AuctionListRow({
           </div>
 
           <Link
-            href={`/subastas/${encodeURIComponent(subasta.id)}`}
+            href={detailHref}
             className="mt-3 block text-[1.12rem] font-semibold leading-tight tracking-[-0.03em] text-foreground transition-colors hover:text-primary md:text-[1.18rem]"
           >
             {displayTitle(subasta)}
@@ -337,7 +346,7 @@ function AuctionListRow({
             BOE
           </a>
           <Link
-            href={`/subastas/${encodeURIComponent(subasta.id)}`}
+            href={detailHref}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:brightness-105"
           >
             Abrir dossier
@@ -350,11 +359,13 @@ function AuctionListRow({
 
 function AuctionCard({
   subasta,
+  detailHref,
   analysis,
   isFavorite,
   onToggleFavorite,
 }: {
   subasta: Subasta;
+  detailHref: string;
   analysis?: AnalysisResult;
   isFavorite: boolean;
   onToggleFavorite: (id: string) => void;
@@ -371,7 +382,7 @@ function AuctionCard({
       </div>
 
       <Link
-        href={`/subastas/${encodeURIComponent(subasta.id)}`}
+        href={detailHref}
         className="mt-4 block text-[1.16rem] font-semibold leading-tight tracking-[-0.03em] text-foreground transition-colors hover:text-primary"
       >
         {displayTitle(subasta)}
@@ -421,7 +432,7 @@ function AuctionCard({
             <Star className={`h-4 w-4 ${isFavorite ? "fill-amber-500 text-amber-500" : ""}`} />
           </button>
           <Link
-            href={`/subastas/${encodeURIComponent(subasta.id)}`}
+            href={detailHref}
             className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:brightness-105"
           >
             Abrir dossier
@@ -446,10 +457,6 @@ function DashboardContent() {
   const { subastas, loading, refetch } = useSubastas();
 
   const [analyses, setAnalyses] = useState<Record<string, AnalysisResult>>({});
-  const [ordenarPorIA, setOrdenarPorIA] = useState(false);
-  const [ordenarPorDescuento, setOrdenarPorDescuento] = useState(false);
-  const [recFiltro, setRecFiltro] = useState("");
-  const [soloFavoritos, setSoloFavoritos] = useState(false);
   const [nowTs, setNowTs] = useState(() => Date.now());
   const [favoritos, setFavoritos] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
@@ -474,6 +481,14 @@ function DashboardContent() {
   const busqueda = searchParams.get("q") || "";
   const provinciaFiltro = searchParams.get("provincia") || "";
   const viewMode: ViewMode = searchParams.get("view") === "cards" ? "cards" : "list";
+  const sortMode: SortMode = parseDashboardSortMode(searchParams.get("orden"));
+  const ordenarPorIA = sortMode === "ia";
+  const ordenarPorDescuento = sortMode === "descuento";
+  const recFiltro: RecommendationFilter = parseDashboardRecommendationFilter(
+    searchParams.get("recomendacion")
+  );
+  const soloFavoritos = searchParams.get("favoritos") === "1";
+  const dashboardQueryString = searchParams.toString();
 
   const updateParams = useCallback(
     (updates: Record<string, string | null>) => {
@@ -486,6 +501,11 @@ function DashboardContent() {
       router.push(qs ? `/dashboard?${qs}` : "/dashboard", { scroll: false });
     },
     [router, searchParams]
+  );
+
+  const getSubastaHref = useCallback(
+    (subastaId: string) => buildSubastaDetailHref(subastaId, dashboardQueryString),
+    [dashboardQueryString]
   );
 
   const setPagina = useCallback(
@@ -584,11 +604,11 @@ function DashboardContent() {
       );
     }
 
-    if (ordenarPorIA) {
+    if (sortMode === "ia") {
       result = [...result].sort(
         (a, b) => (analyses[b.id]?.oportunidad ?? -1) - (analyses[a.id]?.oportunidad ?? -1)
       );
-    } else if (ordenarPorDescuento) {
+    } else if (sortMode === "descuento") {
       result = [...result].sort(
         (a, b) =>
           (calcDescuento(b.valorSubasta, b.tasacion) ?? -999) -
@@ -601,11 +621,10 @@ function DashboardContent() {
     analyses,
     busqueda,
     favoritos,
-    ordenarPorDescuento,
-    ordenarPorIA,
     provinciaFiltro,
     recFiltro,
     soloFavoritos,
+    sortMode,
     subastas,
   ]);
 
@@ -696,7 +715,11 @@ function DashboardContent() {
   }, [filtradas]);
 
   const activeFilters =
-    (busqueda ? 1 : 0) + (provinciaFiltro ? 1 : 0) + (recFiltro ? 1 : 0) + (soloFavoritos ? 1 : 0);
+    (busqueda ? 1 : 0) +
+    (provinciaFiltro ? 1 : 0) +
+    (recFiltro ? 1 : 0) +
+    (soloFavoritos ? 1 : 0) +
+    (sortMode ? 1 : 0);
 
   const recommendationOptions = [
     { key: "comprar", label: "Comprar", icon: CheckCircle, value: insightSummary.comprar },
@@ -784,7 +807,7 @@ function DashboardContent() {
               {latestEntries.map((item) => (
                 <Link
                   key={item.id}
-                  href={`/subastas/${encodeURIComponent(item.id)}`}
+                  href={getSubastaHref(item.id)}
                   className="block rounded-[1rem] border border-border/80 bg-card p-4 transition-colors hover:border-primary/20"
                 >
                   <div className="flex items-center justify-between gap-3">
@@ -854,10 +877,7 @@ function DashboardContent() {
               <Button
                 variant={soloFavoritos ? "default" : "outline"}
                 title="Solo favoritos"
-                onClick={() => {
-                  setSoloFavoritos(!soloFavoritos);
-                  updateParams({ page: null });
-                }}
+                onClick={() => updateParams({ favoritos: soloFavoritos ? null : "1", page: null })}
                 className={`h-11 rounded-2xl border-border px-4 text-sm font-medium ${
                   soloFavoritos ? "bg-amber-100 text-amber-900 hover:bg-amber-100" : "bg-card text-foreground"
                 }`}
@@ -869,11 +889,7 @@ function DashboardContent() {
               <Button
                 variant={ordenarPorIA ? "default" : "outline"}
                 title="Ordenar por puntuación IA"
-                onClick={() => {
-                  setOrdenarPorIA(!ordenarPorIA);
-                  setOrdenarPorDescuento(false);
-                  updateParams({ page: null });
-                }}
+                onClick={() => updateParams({ orden: ordenarPorIA ? null : "ia", page: null })}
                 className={`h-11 rounded-2xl border-border px-4 text-sm font-medium ${
                   ordenarPorIA ? "bg-primary text-primary-foreground hover:bg-primary" : "bg-card text-foreground"
                 }`}
@@ -885,11 +901,9 @@ function DashboardContent() {
               <Button
                 variant={ordenarPorDescuento ? "default" : "outline"}
                 title="Ordenar por descuento"
-                onClick={() => {
-                  setOrdenarPorDescuento(!ordenarPorDescuento);
-                  setOrdenarPorIA(false);
-                  updateParams({ page: null });
-                }}
+                onClick={() =>
+                  updateParams({ orden: ordenarPorDescuento ? null : "descuento", page: null })
+                }
                 className={`h-11 rounded-2xl border-border px-4 text-sm font-medium ${
                   ordenarPorDescuento ? "bg-amber-100 text-amber-900 hover:bg-amber-100" : "bg-card text-foreground"
                 }`}
@@ -927,10 +941,12 @@ function DashboardContent() {
               {recommendationOptions.map(({ key, label, icon: Icon, value }) => (
                 <button
                   key={key}
-                  onClick={() => {
-                    setRecFiltro(recFiltro === key ? "" : key);
-                    updateParams({ page: null });
-                  }}
+                  onClick={() =>
+                    updateParams({
+                      recomendacion: recFiltro === key ? null : key,
+                      page: null,
+                    })
+                  }
                   className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${
                     recFiltro === key ? recommendationClasses(key) : "border-border bg-card text-muted-foreground"
                   }`}
@@ -952,11 +968,16 @@ function DashboardContent() {
             </span>
             {activeFilters > 0 && (
               <button
-                onClick={() => {
-                  updateParams({ q: null, provincia: null, page: null });
-                  setRecFiltro("");
-                  setSoloFavoritos(false);
-                }}
+                onClick={() =>
+                  updateParams({
+                    q: null,
+                    provincia: null,
+                    favoritos: null,
+                    recomendacion: null,
+                    orden: null,
+                    page: null,
+                  })
+                }
                 className="text-sm font-semibold text-primary hover:text-foreground"
               >
                 Limpiar filtros
@@ -1000,6 +1021,7 @@ function DashboardContent() {
                   <AuctionListRow
                     key={subasta.id}
                     subasta={subasta}
+                    detailHref={getSubastaHref(subasta.id)}
                     analysis={analyses[subasta.id]}
                     isFavorite={favoritos.has(subasta.id)}
                     onToggleFavorite={toggleFavorito}
@@ -1014,6 +1036,7 @@ function DashboardContent() {
                   <AuctionCard
                     key={subasta.id}
                     subasta={subasta}
+                    detailHref={getSubastaHref(subasta.id)}
                     analysis={analyses[subasta.id]}
                     isFavorite={favoritos.has(subasta.id)}
                     onToggleFavorite={toggleFavorito}
@@ -1118,7 +1141,7 @@ function DashboardContent() {
                   </div>
 
                   <Link
-                    href={`/subastas/${encodeURIComponent(insightSummary.topSubasta.id)}`}
+                    href={getSubastaHref(insightSummary.topSubasta.id)}
                     className="mt-4 block text-[1.05rem] font-semibold leading-tight tracking-[-0.03em] text-foreground transition-colors hover:text-primary"
                   >
                     {displayTitle(insightSummary.topSubasta)}
@@ -1140,7 +1163,7 @@ function DashboardContent() {
                   {shortlist.map((item) => (
                     <Link
                       key={item.id}
-                      href={`/subastas/${encodeURIComponent(item.id)}`}
+                      href={getSubastaHref(item.id)}
                       className="block rounded-[1rem] border border-border/80 bg-card p-4 transition-colors hover:border-primary/20"
                     >
                       <div className="flex items-center justify-between gap-3">
