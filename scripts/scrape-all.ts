@@ -10,6 +10,9 @@
 import { config } from "dotenv";
 import { resolve } from "path";
 config({ path: resolve(process.cwd(), ".env.local") });
+if (process.env.SUBASTA_EXTRA_ENV_FILE) {
+  config({ path: resolve(process.env.SUBASTA_EXTRA_ENV_FILE), override: false });
+}
 
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
 import { join } from "path";

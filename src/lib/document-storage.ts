@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { mkdirSync, existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
-import { dirname } from "path";
+import { dirname, join } from "path";
 import { gunzipSync, gzipSync } from "zlib";
 import { get, put, type PutBlobResult } from "@vercel/blob";
 import { Binary } from "mongodb";
@@ -17,6 +17,7 @@ const BOE_HEADERS: Record<string, string> = {
 };
 
 const DOCUMENTS_API_PREFIX = "/api/documents";
+const LOCAL_RESULTS_DIR = join(process.cwd(), "data", "results");
 
 export interface StoredDocumentRecord {
   url: string;
@@ -74,6 +75,14 @@ function buildBlobPathname(subastaId: string, url: string, titulo: string): stri
   const hash = createHash("sha1").update(url).digest("hex").slice(0, 16);
   const slug = slugifyTitle(titulo) || "documento";
   return `subastas/${subastaId}/${hash}-${slug}.pdf`;
+}
+
+export function getDocumentBlobPathname(
+  subastaId: string,
+  url: string,
+  titulo: string
+): string {
+  return buildBlobPathname(subastaId, url, titulo);
 }
 
 function toBuffer(value: Binary["buffer"] | Buffer): Buffer {
@@ -413,11 +422,30 @@ export async function getSubastaDocument(
 ): Promise<{ subastaId: string; doc: Documento; filename: string } | null> {
   if (!Number.isInteger(docIndex) || docIndex < 0) return null;
 
-  const col = await getSubastasCollection();
-  const subasta = await col.findOne(
-    { id: subastaId },
-    { projection: { id: 1, documentos: 1 } }
-  );
+  let subasta:
+    | { id?: string; documentos?: Documento[] | null }
+    | null = null;
+
+  try {
+    const col = await getSubastasCollection();
+    subasta = (await col.findOne(
+      { id: subastaId },
+      { projection: { id: 1, documentos: 1 } }
+    )) as { id?: string; documentos?: Documento[] | null } | null;
+  } catch {
+    subasta = null;
+  }
+
+  if (!subasta) {
+    try {
+      const snapshot = JSON.parse(
+        readFileSync(join(LOCAL_RESULTS_DIR, "subastas.json"), "utf-8")
+      ) as Array<{ id?: string; documentos?: Documento[] | null }>;
+      subasta = snapshot.find((item) => item.id === subastaId) || null;
+    } catch {
+      subasta = null;
+    }
+  }
 
   const documentos = Array.isArray(subasta?.documentos)
     ? (subasta.documentos as Documento[])

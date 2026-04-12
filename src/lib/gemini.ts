@@ -4,6 +4,10 @@ import type { AnalysisResult } from "./storage";
 import { getUsableBoeSession } from "./boe-session-runtime";
 import { getStoredPdfBuffer } from "./document-storage";
 
+const MAX_ATTACHED_DOCS = 6;
+const MAX_TOTAL_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+const MAX_SINGLE_ATTACHMENT_BYTES = 12 * 1024 * 1024;
+
 function getClient() {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY no configurada");
@@ -279,15 +283,107 @@ function calculateCost(inputTokens: number, outputTokens: number): number {
   );
 }
 
-async function getPdfBase64(
-  url: string,
-  titulo: string,
-  subastaId: string,
+function getDocumentPriority(title: string): number {
+  const normalized = title.toLowerCase();
+
+  if (
+    normalized.includes("nota simple") ||
+    normalized.includes("certificacion de cargas") ||
+    normalized.includes("certificación de cargas") ||
+    normalized.includes("certificado de cargas") ||
+    normalized.includes("certificado dominio y cargas") ||
+    normalized.includes("certificación de dominio y cargas")
+  ) {
+    return 100;
+  }
+
+  if (normalized.includes("edicto")) return 90;
+  if (normalized.includes("tasacion") || normalized.includes("tasación")) return 80;
+  if (normalized.includes("catastral") || normalized.includes("catastr")) return 70;
+  if (normalized.includes("ibi") || normalized.includes("deuda")) return 60;
+  if (normalized.includes("condiciones")) return 50;
+  return 40;
+}
+
+function isInvalidModelInputError(error: unknown): boolean {
+  const message = String(error);
+  return (
+    message.includes("INVALID_ARGUMENT") ||
+    message.includes("maximum number of tokens allowed")
+  );
+}
+
+async function loadPrioritizedPdfParts(
+  subasta: Subasta,
   sessionId?: string
-): Promise<string | null> {
-  const session = await getUsableBoeSession({ sessionId });
-  const buffer = await getStoredPdfBuffer(url, titulo, subastaId, session);
-  return buffer ? buffer.toString("base64") : null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any[]> {
+  const documents = subasta.documentos || [];
+  if (documents.length === 0) return [];
+
+  const pdfs = await Promise.all(
+    documents.map(async (doc, index) => {
+      const session = await getUsableBoeSession({ sessionId });
+      const buffer = await getStoredPdfBuffer(doc.url, doc.titulo, subasta.id, session);
+      return buffer
+        ? {
+            index,
+            titulo: doc.titulo,
+            bytes: buffer.length,
+            base64: buffer.toString("base64"),
+            priority: getDocumentPriority(doc.titulo),
+          }
+        : null;
+    })
+  );
+
+  let attachedCount = 0;
+  let attachedBytes = 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const parts: any[] = [];
+
+  const selected = pdfs
+    .filter((pdf): pdf is NonNullable<typeof pdf> => Boolean(pdf))
+    .filter((pdf) => pdf.bytes <= MAX_SINGLE_ATTACHMENT_BYTES)
+    .sort((a, b) => {
+      if (b.priority !== a.priority) return b.priority - a.priority;
+      if (a.bytes !== b.bytes) return a.bytes - b.bytes;
+      return a.index - b.index;
+    });
+
+  for (const pdf of selected) {
+    if (attachedCount >= MAX_ATTACHED_DOCS) break;
+    if (attachedBytes + pdf.bytes > MAX_TOTAL_ATTACHMENT_BYTES) continue;
+
+    parts.push({
+      inlineData: {
+        mimeType: "application/pdf",
+        data: pdf.base64,
+      },
+    });
+    parts.push({
+      text: `[Documento adjunto: "${pdf.titulo}"]`,
+    });
+
+    attachedCount += 1;
+    attachedBytes += pdf.bytes;
+  }
+
+  return parts;
+}
+
+async function generateAnalysisResponse(
+  ai: GoogleGenAI,
+  prompt: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  pdfParts: any[]
+) {
+  const parts = [...pdfParts, { text: prompt }];
+
+  return ai.models.generateContent({
+    model: MODEL_NAME,
+    contents: [{ role: "user", parts }],
+  });
 }
 
 export async function analizarSubasta(
@@ -296,45 +392,16 @@ export async function analizarSubasta(
 ): Promise<AnalysisResult> {
   const ai = getClient();
   const prompt = buildPrompt(subasta);
-  const session = await getUsableBoeSession({ sessionId });
+  const pdfParts = await loadPrioritizedPdfParts(subasta, sessionId);
+  const docsAttached = pdfParts.filter((p) => p.inlineData).length;
 
-  // Build parts: PDFs first, then text prompt
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const parts: any[] = [];
-
-  // Download/cache and attach PDFs
-  if (subasta.documentos && subasta.documentos.length > 0) {
-    const pdfs = await Promise.all(
-      subasta.documentos.map((doc) =>
-        getPdfBase64(doc.url, doc.titulo, subasta.id, session.sessId)
-      )
-    );
-
-    for (let i = 0; i < pdfs.length; i++) {
-      const base64 = pdfs[i];
-      if (base64) {
-        parts.push({
-          inlineData: {
-            mimeType: "application/pdf",
-            data: base64,
-          },
-        });
-        parts.push({
-          text: `[Documento adjunto: "${subasta.documentos[i].titulo}"]`,
-        });
-      }
-    }
+  let response;
+  try {
+    response = await generateAnalysisResponse(ai, prompt, pdfParts);
+  } catch (error) {
+    if (!isInvalidModelInputError(error)) throw error;
+    response = await generateAnalysisResponse(ai, prompt, []);
   }
-
-  // Add the main prompt last
-  parts.push({ text: prompt });
-
-  const docsAttached = parts.filter((p) => p.inlineData).length;
-
-  const response = await ai.models.generateContent({
-    model: MODEL_NAME,
-    contents: [{ role: "user", parts }],
-  });
 
   // Extract token usage
   const meta = response.usageMetadata;
