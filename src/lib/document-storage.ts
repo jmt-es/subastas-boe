@@ -103,8 +103,12 @@ async function streamToBuffer(stream: ReadableStream<Uint8Array>): Promise<Buffe
 }
 
 function writeLocalCache(pdfPath: string, buffer: Buffer) {
-  mkdirSync(dirname(pdfPath), { recursive: true });
-  writeFileSync(pdfPath, buffer);
+  try {
+    mkdirSync(dirname(pdfPath), { recursive: true });
+    writeFileSync(pdfPath, buffer);
+  } catch {
+    // Local caching is best-effort. Blob/Mongo-backed reads should still succeed.
+  }
 }
 
 async function loadDocumentRecord(url: string): Promise<StoredDocumentRecord | null> {

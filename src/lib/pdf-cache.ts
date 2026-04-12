@@ -1,7 +1,9 @@
-import { homedir } from "os";
+import { homedir, tmpdir } from "os";
 import { join } from "path";
 
-const DEFAULT_PDF_CACHE_DIR = join(homedir(), ".subasta-boe", "pdfs");
+const DEFAULT_PDF_CACHE_DIR = process.env.VERCEL
+  ? join(tmpdir(), "subasta-boe", "pdfs")
+  : join(homedir(), ".subasta-boe", "pdfs");
 
 export const PDF_CACHE_DIR =
   process.env.SUBASTA_PDF_CACHE_DIR || DEFAULT_PDF_CACHE_DIR;
