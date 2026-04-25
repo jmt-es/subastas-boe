@@ -34,19 +34,36 @@ export function getActiveSubastasFilter(now = new Date()): Record<string, unknow
   };
 }
 
+export function getInactiveSubastasFilter(now = new Date()): Record<string, unknown> {
+  return {
+    $nor: [getActiveSubastasFilter(now)],
+  };
+}
+
+function parseDateTime(value?: string | null): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 export function isSubastaActive(
-  input: { fechaConclusionAt?: string; scrapedAt?: string },
+  input: { fechaConclusionAt?: string; fechaConclusion?: string; scrapedAt?: string },
   now = new Date()
 ): boolean {
   const graceWindowMs = 12 * 60 * 60 * 1000;
   const recentFallbackMs = 72 * 60 * 60 * 1000;
+  const activeCutoff = now.getTime() - graceWindowMs;
+  const recentCutoff = now.getTime() - recentFallbackMs;
 
-  if (input.fechaConclusionAt) {
-    return input.fechaConclusionAt >= new Date(now.getTime() - graceWindowMs).toISOString();
+  const conclusionTime =
+    parseDateTime(input.fechaConclusionAt) ?? parseDateTime(parseBoeDateToIso(input.fechaConclusion));
+  if (conclusionTime !== null) {
+    return conclusionTime >= activeCutoff;
   }
 
-  if (input.scrapedAt) {
-    return input.scrapedAt >= new Date(now.getTime() - recentFallbackMs).toISOString();
+  const scrapedTime = parseDateTime(input.scrapedAt);
+  if (scrapedTime !== null) {
+    return scrapedTime >= recentCutoff;
   }
 
   return false;

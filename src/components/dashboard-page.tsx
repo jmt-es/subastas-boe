@@ -26,6 +26,7 @@ import {
   LayoutGrid,
   List,
   Search,
+  Scale,
   ShieldAlert,
   Star,
   TrendingDown,
@@ -49,17 +50,28 @@ import {
 } from "@/lib/subasta-presenters";
 import {
   buildSubastaDetailHref,
+  parseDashboardClosingFilter,
   parseDashboardRecommendationFilter,
+  parseDashboardScoreFilter,
   parseDashboardSortMode,
+  parseDashboardStatusFilter,
+  type DashboardClosingFilter,
+  type DashboardScoreFilter,
+  type DashboardSortMode,
+  type DashboardStatusFilter,
 } from "@/lib/dashboard-search-params";
 import type { Subasta } from "@/lib/scraper";
+import { isSubastaActive } from "@/lib/subasta-dates";
 import { useSubastas } from "@/lib/use-subastas";
 
 const PAGE_SIZE = 25;
 
 type ViewMode = "list" | "cards";
-type SortMode = "" | "ia" | "descuento";
+type SortMode = DashboardSortMode;
 type RecommendationFilter = "" | "comprar" | "observar" | "descartar";
+type StatusFilter = DashboardStatusFilter;
+type ClosingFilter = DashboardClosingFilter;
+type ScoreFilter = DashboardScoreFilter;
 
 function calcDescuento(valorSubasta?: string, tasacion?: string): number | null {
   const v = parseAmountNumber(valorSubasta);
@@ -82,6 +94,68 @@ function daysUntil(d?: string): number | null {
   const date = parseDate(d);
   if (!date) return null;
   return Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+}
+
+function getClosingDays(subasta: Subasta): number | null {
+  return daysUntil(subasta.fechaConclusionAt || subasta.fechaConclusion);
+}
+
+function getClosingTime(subasta: Subasta): number {
+  return parseDate(subasta.fechaConclusionAt || subasta.fechaConclusion)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+}
+
+function isActiveAuction(subasta: Subasta, nowTs: number) {
+  return isSubastaActive(subasta, new Date(nowTs));
+}
+
+function assetFilterKey(label: string) {
+  return label
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("es-ES")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function assetFilterValue(subasta: Subasta) {
+  return assetFilterKey(inferAssetLabel(subasta));
+}
+
+function matchesClosingFilter(subasta: Subasta, filter: ClosingFilter) {
+  if (!filter) return true;
+
+  const days = getClosingDays(subasta);
+  if (filter === "sin-fecha") return days === null;
+  if (days === null) return false;
+
+  return days >= 0 && days <= Number(filter);
+}
+
+function statusCopy(status: StatusFilter) {
+  if (status === "inactivas") {
+    return {
+      label: "Inactivas",
+      chip: "Histórico explícito",
+      headline: "inactivas cargadas a propósito",
+      hint: "Fuera de la vista diaria hasta que las pidas.",
+    };
+  }
+
+  if (status === "todas") {
+    return {
+      label: "Todas",
+      chip: "Activas + histórico",
+      headline: "expedientes mezclando activas e histórico",
+      hint: "Incluye cerradas porque lo has pedido en el filtro.",
+    };
+  }
+
+  return {
+    label: "Activas",
+    chip: "Activas por defecto",
+    headline: "activas para revisar ahora",
+    hint: "Las cerradas no entran en la vista diaria.",
+  };
 }
 
 function recommendationLabel(value?: string) {
@@ -454,7 +528,6 @@ export default function Dashboard() {
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { subastas, loading, refetch } = useSubastas();
 
   const [analyses, setAnalyses] = useState<Record<string, AnalysisResult>>({});
   const [nowTs, setNowTs] = useState(() => Date.now());
@@ -479,16 +552,23 @@ function DashboardContent() {
 
   const pagina = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
   const busqueda = searchParams.get("q") || "";
+  const statusFiltro: StatusFilter = parseDashboardStatusFilter(searchParams.get("estado"));
   const provinciaFiltro = searchParams.get("provincia") || "";
+  const tipoFiltro = searchParams.get("tipo") || "";
+  const cierreFiltro: ClosingFilter = parseDashboardClosingFilter(searchParams.get("cierre"));
+  const scoreFiltro: ScoreFilter = parseDashboardScoreFilter(searchParams.get("score"));
   const viewMode: ViewMode = searchParams.get("view") === "cards" ? "cards" : "list";
   const sortMode: SortMode = parseDashboardSortMode(searchParams.get("orden"));
   const ordenarPorIA = sortMode === "ia";
   const ordenarPorDescuento = sortMode === "descuento";
+  const ordenarPorCierre = sortMode === "cierre";
+  const ordenarPorValor = sortMode === "valor";
   const recFiltro: RecommendationFilter = parseDashboardRecommendationFilter(
     searchParams.get("recomendacion")
   );
   const soloFavoritos = searchParams.get("favoritos") === "1";
   const dashboardQueryString = searchParams.toString();
+  const { subastas, loading, refetch } = useSubastas({ estado: statusFiltro });
 
   const updateParams = useCallback(
     (updates: Record<string, string | null>) => {
@@ -526,6 +606,37 @@ function DashboardContent() {
   const setProvincia = useCallback(
     (prov: string) => {
       updateParams({ provincia: prov || null, page: null });
+    },
+    [updateParams]
+  );
+
+  const setStatusFiltro = useCallback(
+    (estado: StatusFilter) => {
+      updateParams({
+        estado: estado === "activas" ? null : estado,
+        page: null,
+      });
+    },
+    [updateParams]
+  );
+
+  const setTipoFiltro = useCallback(
+    (tipo: string) => {
+      updateParams({ tipo: tipo || null, page: null });
+    },
+    [updateParams]
+  );
+
+  const setCierreFiltro = useCallback(
+    (cierre: ClosingFilter) => {
+      updateParams({ cierre: cierre || null, page: null });
+    },
+    [updateParams]
+  );
+
+  const setScoreFiltro = useCallback(
+    (score: ScoreFilter) => {
+      updateParams({ score: score || null, page: null });
     },
     [updateParams]
   );
@@ -576,8 +687,28 @@ function DashboardContent() {
     return Array.from(values).sort((a, b) => a.localeCompare(b, "es"));
   }, [subastas]);
 
+  const tipoOptions = useMemo(() => {
+    const values = new Map<string, { label: string; count: number }>();
+    for (const subasta of subastas) {
+      const label = inferAssetLabel(subasta);
+      const key = assetFilterKey(label);
+      const current = values.get(key);
+      values.set(key, { label, count: (current?.count || 0) + 1 });
+    }
+
+    return Array.from(values.entries())
+      .map(([key, value]) => ({ key, ...value }))
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "es"));
+  }, [subastas]);
+
   const filtradas = useMemo(() => {
     let result = subastas;
+
+    if (statusFiltro === "activas") {
+      result = result.filter((subasta) => isActiveAuction(subasta, nowTs));
+    } else if (statusFiltro === "inactivas") {
+      result = result.filter((subasta) => !isActiveAuction(subasta, nowTs));
+    }
 
     if (soloFavoritos) {
       result = result.filter((subasta) => favoritos.has(subasta.id));
@@ -587,8 +718,21 @@ function DashboardContent() {
       result = result.filter((subasta) => subasta.provincia === provinciaFiltro);
     }
 
+    if (tipoFiltro) {
+      result = result.filter((subasta) => assetFilterValue(subasta) === tipoFiltro);
+    }
+
     if (recFiltro) {
       result = result.filter((subasta) => analyses[subasta.id]?.recomendacion === recFiltro);
+    }
+
+    if (scoreFiltro) {
+      const minScore = Number(scoreFiltro);
+      result = result.filter((subasta) => (analyses[subasta.id]?.oportunidad ?? -1) >= minScore);
+    }
+
+    if (cierreFiltro) {
+      result = result.filter((subasta) => matchesClosingFilter(subasta, cierreFiltro));
     }
 
     if (busqueda.trim()) {
@@ -599,7 +743,11 @@ function DashboardContent() {
           subasta.direccion?.toLowerCase().includes(query) ||
           subasta.localidad?.toLowerCase().includes(query) ||
           subasta.provincia?.toLowerCase().includes(query) ||
+          subasta.tipoSubasta?.toLowerCase().includes(query) ||
           subasta.tipoBienDetalle?.toLowerCase().includes(query) ||
+          subasta.valorSubasta?.toLowerCase().includes(query) ||
+          subasta.tasacion?.toLowerCase().includes(query) ||
+          subasta.estado?.toLowerCase().includes(query) ||
           subasta.id.toLowerCase().includes(query)
       );
     }
@@ -614,18 +762,29 @@ function DashboardContent() {
           (calcDescuento(b.valorSubasta, b.tasacion) ?? -999) -
           (calcDescuento(a.valorSubasta, a.tasacion) ?? -999)
       );
+    } else if (sortMode === "cierre") {
+      result = [...result].sort((a, b) => getClosingTime(a) - getClosingTime(b));
+    } else if (sortMode === "valor") {
+      result = [...result].sort(
+        (a, b) => (parseAmountNumber(b.valorSubasta) ?? -1) - (parseAmountNumber(a.valorSubasta) ?? -1)
+      );
     }
 
     return result;
   }, [
     analyses,
     busqueda,
+    cierreFiltro,
     favoritos,
+    nowTs,
     provinciaFiltro,
     recFiltro,
+    scoreFiltro,
     soloFavoritos,
     sortMode,
+    statusFiltro,
     subastas,
+    tipoFiltro,
   ]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE));
@@ -634,12 +793,13 @@ function DashboardContent() {
 
   const stats = useMemo(() => {
     let activas = 0;
+    let inactivas = 0;
     let valorTotal = 0;
     let latestScrapedAt: string | null = null;
 
     for (const subasta of subastas) {
-      const end = parseDate(subasta.fechaConclusionAt || subasta.fechaConclusion);
-      if (end && end.getTime() > nowTs) activas++;
+      if (isActiveAuction(subasta, nowTs)) activas++;
+      else inactivas++;
 
       const valor = parseAmountNumber(subasta.valorSubasta);
       if (valor) valorTotal += valor;
@@ -650,6 +810,7 @@ function DashboardContent() {
     return {
       total: subastas.length,
       activas,
+      inactivas,
       valorTotal,
       provincias: new Set(subastas.map((item) => item.provincia).filter(Boolean)).size,
       analizadas: Object.keys(analyses).length,
@@ -664,14 +825,17 @@ function DashboardContent() {
     let topScore = -1;
     let topId: string | null = null;
 
-    for (const [subastaId, analysis] of Object.entries(analyses)) {
+    for (const subasta of subastas) {
+      const analysis = analyses[subasta.id];
+      if (!analysis) continue;
+
       if (analysis.recomendacion === "comprar") comprar++;
       if (analysis.recomendacion === "observar") observar++;
       if (analysis.recomendacion === "descartar") descartar++;
 
       if (analysis.oportunidad > topScore) {
         topScore = analysis.oportunidad;
-        topId = subastaId;
+        topId = subasta.id;
       }
     }
 
@@ -716,10 +880,53 @@ function DashboardContent() {
 
   const activeFilters =
     (busqueda ? 1 : 0) +
+    (statusFiltro !== "activas" ? 1 : 0) +
     (provinciaFiltro ? 1 : 0) +
+    (tipoFiltro ? 1 : 0) +
+    (cierreFiltro ? 1 : 0) +
+    (scoreFiltro ? 1 : 0) +
     (recFiltro ? 1 : 0) +
     (soloFavoritos ? 1 : 0) +
     (sortMode ? 1 : 0);
+
+  const scopeCopy = statusCopy(statusFiltro);
+  const statusStat =
+    statusFiltro === "inactivas"
+      ? {
+          label: "Inactivas",
+          value: String(stats.inactivas),
+          hint: "Cargadas solo por filtro explícito",
+        }
+      : statusFiltro === "todas"
+        ? {
+            label: "Activas",
+            value: String(stats.activas),
+            hint: `${stats.inactivas} fuera de plazo en esta vista`,
+          }
+        : {
+            label: "Activas",
+            value: String(stats.activas),
+            hint: "Estado por defecto del radar",
+          };
+
+  const statusOptions = [
+    { key: "activas", label: "Activas", icon: CheckCircle },
+    { key: "inactivas", label: "Inactivas", icon: XCircle },
+    { key: "todas", label: "Todas", icon: Filter },
+  ] as const;
+
+  const cierreOptions = [
+    { value: "7", label: "Cierre 7 días" },
+    { value: "14", label: "Cierre 14 días" },
+    { value: "30", label: "Cierre 30 días" },
+    { value: "sin-fecha", label: "Sin fecha" },
+  ] as const;
+
+  const scoreOptions = [
+    { value: "60", label: "IA ≥ 60" },
+    { value: "70", label: "IA ≥ 70" },
+    { value: "80", label: "IA ≥ 80" },
+  ] as const;
 
   const recommendationOptions = [
     { key: "comprar", label: "Comprar", icon: CheckCircle, value: insightSummary.comprar },
@@ -741,10 +948,10 @@ function DashboardContent() {
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground">
-              {stats.activas} activas
+              {scopeCopy.chip}
             </span>
             <span className="rounded-full border border-primary/12 bg-primary/8 px-3 py-1.5 text-xs font-semibold text-primary">
-              {stats.analizadas} dossiers IA
+              {filtradas.length} visibles
             </span>
             <span className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground">
               Última captura {formatDateTime(stats.latestScrapedAt, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
@@ -759,11 +966,11 @@ function DashboardContent() {
             <span className="section-kicker">Radar diario</span>
             <div className="mt-4 max-w-4xl">
               <h1 className="text-[1.55rem] font-semibold leading-tight tracking-[-0.04em] text-foreground md:text-[1.95rem]">
-                {stats.activas} activas para revisar con una lectura compacta, sin botones operativos que estorben.
+                {`${stats.total} ${scopeCopy.headline}, con filtros pensados para decidir rápido.`}
               </h1>
               <p className="mt-4 max-w-3xl text-[0.96rem] leading-7 text-muted-foreground md:text-[0.98rem]">
-                La sincronización ya corre en segundo plano. Aquí solo queda buscar, comparar,
-                guardar favoritos y abrir el dossier con contexto claro.
+                {scopeCopy.hint} Busca por ubicación o expediente, separa por tipo,
+                prioriza cierres y abre el dossier sin perder el contexto.
               </p>
             </div>
 
@@ -774,9 +981,9 @@ function DashboardContent() {
                 hint={`${stats.provincias} provincias cubiertas`}
               />
               <OverviewStat
-                label="Activas"
-                value={String(stats.activas)}
-                hint="Con fecha de cierre futura"
+                label={statusStat.label}
+                value={statusStat.value}
+                hint={statusStat.hint}
               />
               <OverviewStat
                 label="Dossiers IA"
@@ -830,11 +1037,11 @@ function DashboardContent() {
         </section>
 
         <section className="war-panel p-4 md:p-5">
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_220px_auto]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_220px_220px_190px]">
             <div className="relative min-w-0">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar expediente, dirección, localidad o ID"
+                placeholder="Buscar expediente, dirección, localidad, valor o ID"
                 value={busqueda}
                 onChange={(event) => setBusqueda(event.target.value)}
                 className="h-11 rounded-2xl border-border bg-input pl-11 text-sm placeholder:text-muted-foreground"
@@ -873,65 +1080,176 @@ function DashboardContent() {
               )}
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant={soloFavoritos ? "default" : "outline"}
-                title="Solo favoritos"
-                onClick={() => updateParams({ favoritos: soloFavoritos ? null : "1", page: null })}
-                className={`h-11 rounded-2xl border-border px-4 text-sm font-medium ${
-                  soloFavoritos ? "bg-amber-100 text-amber-900 hover:bg-amber-100" : "bg-card text-foreground"
-                }`}
+            <div className="relative min-w-0">
+              <Filter className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <select
+                value={tipoFiltro}
+                onChange={(event) => setTipoFiltro(event.target.value)}
+                className="h-11 w-full appearance-none rounded-2xl border border-border bg-input pl-10 pr-9 text-sm text-foreground outline-none"
               >
-                <Star className={`h-3.5 w-3.5 ${soloFavoritos ? "fill-current" : ""}`} />
-                Favoritos
-              </Button>
-
-              <Button
-                variant={ordenarPorIA ? "default" : "outline"}
-                title="Ordenar por puntuación IA"
-                onClick={() => updateParams({ orden: ordenarPorIA ? null : "ia", page: null })}
-                className={`h-11 rounded-2xl border-border px-4 text-sm font-medium ${
-                  ordenarPorIA ? "bg-primary text-primary-foreground hover:bg-primary" : "bg-card text-foreground"
-                }`}
-              >
-                <Brain className="h-3.5 w-3.5" />
-                Orden IA
-              </Button>
-
-              <Button
-                variant={ordenarPorDescuento ? "default" : "outline"}
-                title="Ordenar por descuento"
-                onClick={() =>
-                  updateParams({ orden: ordenarPorDescuento ? null : "descuento", page: null })
-                }
-                className={`h-11 rounded-2xl border-border px-4 text-sm font-medium ${
-                  ordenarPorDescuento ? "bg-amber-100 text-amber-900 hover:bg-amber-100" : "bg-card text-foreground"
-                }`}
-              >
-                <TrendingDown className="h-3.5 w-3.5" />
-                Descuento
-              </Button>
-
-              <div className="inline-flex rounded-2xl border border-border bg-card p-1">
+                <option value="">Todos los tipos</option>
+                {tipoOptions.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label} ({option.count})
+                  </option>
+                ))}
+              </select>
+              {tipoFiltro && (
                 <button
-                  onClick={() => setViewMode("list")}
+                  onClick={() => setTipoFiltro("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="relative min-w-0">
+              <CalendarClock className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <select
+                value={cierreFiltro}
+                onChange={(event) => setCierreFiltro(parseDashboardClosingFilter(event.target.value))}
+                className="h-11 w-full appearance-none rounded-2xl border border-border bg-input pl-10 pr-9 text-sm text-foreground outline-none"
+              >
+                <option value="">Cualquier cierre</option>
+                {cierreOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {cierreFiltro && (
+                <button
+                  onClick={() => setCierreFiltro("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <div className="inline-flex rounded-2xl border border-border bg-card p-1">
+              {statusOptions.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setStatusFiltro(key)}
                   className={`inline-flex h-9 items-center gap-2 rounded-[0.9rem] px-3 text-sm font-medium transition-colors ${
-                    viewMode === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                    statusFiltro === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <List className="h-3.5 w-3.5" />
-                  Lista
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
                 </button>
+              ))}
+            </div>
+
+            <div className="relative min-w-[145px]">
+              <Brain className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <select
+                value={scoreFiltro}
+                onChange={(event) => setScoreFiltro(parseDashboardScoreFilter(event.target.value))}
+                className="h-11 w-full appearance-none rounded-2xl border border-border bg-input pl-10 pr-9 text-sm text-foreground outline-none"
+              >
+                <option value="">Cualquier IA</option>
+                {scoreOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {scoreFiltro && (
                 <button
-                  onClick={() => setViewMode("cards")}
-                  className={`inline-flex h-9 items-center gap-2 rounded-[0.9rem] px-3 text-sm font-medium transition-colors ${
-                    viewMode === "cards" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-                  }`}
+                  onClick={() => setScoreFiltro("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                  Cards
+                  <X className="h-3.5 w-3.5" />
                 </button>
-              </div>
+              )}
+            </div>
+
+            <Button
+              variant={soloFavoritos ? "default" : "outline"}
+              title="Solo favoritos"
+              onClick={() => updateParams({ favoritos: soloFavoritos ? null : "1", page: null })}
+              className={`h-11 rounded-2xl border-border px-4 text-sm font-medium ${
+                soloFavoritos ? "bg-amber-100 text-amber-900 hover:bg-amber-100" : "bg-card text-foreground"
+              }`}
+            >
+              <Star className={`h-3.5 w-3.5 ${soloFavoritos ? "fill-current" : ""}`} />
+              Favoritos
+            </Button>
+
+            <Button
+              variant={ordenarPorIA ? "default" : "outline"}
+              title="Ordenar por puntuación IA"
+              onClick={() => updateParams({ orden: ordenarPorIA ? null : "ia", page: null })}
+              className={`h-11 rounded-2xl border-border px-4 text-sm font-medium ${
+                ordenarPorIA ? "bg-primary text-primary-foreground hover:bg-primary" : "bg-card text-foreground"
+              }`}
+            >
+              <Brain className="h-3.5 w-3.5" />
+              IA
+            </Button>
+
+            <Button
+              variant={ordenarPorCierre ? "default" : "outline"}
+              title="Ordenar por cierre"
+              onClick={() => updateParams({ orden: ordenarPorCierre ? null : "cierre", page: null })}
+              className={`h-11 rounded-2xl border-border px-4 text-sm font-medium ${
+                ordenarPorCierre ? "bg-primary text-primary-foreground hover:bg-primary" : "bg-card text-foreground"
+              }`}
+            >
+              <CalendarClock className="h-3.5 w-3.5" />
+              Cierre
+            </Button>
+
+            <Button
+              variant={ordenarPorDescuento ? "default" : "outline"}
+              title="Ordenar por descuento"
+              onClick={() =>
+                updateParams({ orden: ordenarPorDescuento ? null : "descuento", page: null })
+              }
+              className={`h-11 rounded-2xl border-border px-4 text-sm font-medium ${
+                ordenarPorDescuento ? "bg-amber-100 text-amber-900 hover:bg-amber-100" : "bg-card text-foreground"
+              }`}
+            >
+              <TrendingDown className="h-3.5 w-3.5" />
+              Descuento
+            </Button>
+
+            <Button
+              variant={ordenarPorValor ? "default" : "outline"}
+              title="Ordenar por valor"
+              onClick={() => updateParams({ orden: ordenarPorValor ? null : "valor", page: null })}
+              className={`h-11 rounded-2xl border-border px-4 text-sm font-medium ${
+                ordenarPorValor ? "bg-amber-100 text-amber-900 hover:bg-amber-100" : "bg-card text-foreground"
+              }`}
+            >
+              <Scale className="h-3.5 w-3.5" />
+              Valor
+            </Button>
+
+            <div className="inline-flex rounded-2xl border border-border bg-card p-1">
+              <button
+                onClick={() => setViewMode("list")}
+                className={`inline-flex h-9 items-center gap-2 rounded-[0.9rem] px-3 text-sm font-medium transition-colors ${
+                  viewMode === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                }`}
+              >
+                <List className="h-3.5 w-3.5" />
+                Lista
+              </button>
+              <button
+                onClick={() => setViewMode("cards")}
+                className={`inline-flex h-9 items-center gap-2 rounded-[0.9rem] px-3 text-sm font-medium transition-colors ${
+                  viewMode === "cards" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                }`}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                Cards
+              </button>
             </div>
           </div>
 
@@ -971,7 +1289,11 @@ function DashboardContent() {
                 onClick={() =>
                   updateParams({
                     q: null,
+                    estado: null,
                     provincia: null,
+                    tipo: null,
+                    cierre: null,
+                    score: null,
                     favoritos: null,
                     recomendacion: null,
                     orden: null,

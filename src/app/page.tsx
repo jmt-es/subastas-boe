@@ -31,9 +31,9 @@ const fallbackLatestItems: Subasta[] = [
     localidad: "Murcia",
     provincia: "Murcia",
     valorSubasta: "13.390 €",
-    fechaConclusionAt: "2026-04-18T09:00:00.000Z",
+    fechaConclusionAt: "2026-05-06T09:00:00.000Z",
     rawData: {},
-    scrapedAt: "2026-04-11T15:04:34.853Z",
+    scrapedAt: "2026-04-25T15:04:34.853Z",
   },
   {
     id: "SUB-JA-2026-259349",
@@ -43,9 +43,9 @@ const fallbackLatestItems: Subasta[] = [
     localidad: "Guardamar",
     provincia: "Alicante",
     valorSubasta: "195.100 €",
-    fechaConclusionAt: "2026-04-15T09:00:00.000Z",
+    fechaConclusionAt: "2026-05-08T09:00:00.000Z",
     rawData: {},
-    scrapedAt: "2026-04-11T14:52:00.000Z",
+    scrapedAt: "2026-04-25T14:52:00.000Z",
   },
   {
     id: "SUB-JA-2026-257101",
@@ -55,9 +55,9 @@ const fallbackLatestItems: Subasta[] = [
     localidad: "Valencia",
     provincia: "Valencia",
     valorSubasta: "89.500 €",
-    fechaConclusionAt: "2026-04-19T10:30:00.000Z",
+    fechaConclusionAt: "2026-05-12T10:30:00.000Z",
     rawData: {},
-    scrapedAt: "2026-04-11T14:35:00.000Z",
+    scrapedAt: "2026-04-25T14:35:00.000Z",
   },
 ];
 
@@ -113,7 +113,7 @@ async function getLandingData() {
       subastasCollection.countDocuments({}),
       subastasCollection.countDocuments(getActiveSubastasFilter()),
       analysisCollection.countDocuments({}),
-      subastasCollection.find({}).sort({ scrapedAt: -1 }).limit(3).toArray(),
+      subastasCollection.find(getActiveSubastasFilter()).sort({ scrapedAt: -1 }).limit(3).toArray(),
     ]);
 
     const latestItems = latestItemsRaw as unknown as Subasta[];

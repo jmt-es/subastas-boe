@@ -1,19 +1,36 @@
 import { NextRequest } from "next/server";
 import { getSubastasCollection } from "@/lib/mongodb";
-import { getActiveSubastasFilter, isSubastaActive } from "@/lib/subasta-dates";
+import {
+  getActiveSubastasFilter,
+  getInactiveSubastasFilter,
+  isSubastaActive,
+} from "@/lib/subasta-dates";
 import { loadSubastasSnapshot } from "@/lib/result-snapshots";
 import type { Subasta } from "@/lib/scraper";
+
+type SubastaStatusFilter = "activas" | "inactivas" | "todas";
+
+function parseStatusFilter(value: string | null, includeAll: boolean): SubastaStatusFilter {
+  if (value === "activas") return "activas";
+  if (value === "inactivas" || value === "todas") return value;
+  return includeAll ? "todas" : "activas";
+}
 
 // GET — fetch all subastas (with optional search)
 export async function GET(request: NextRequest) {
   const search = request.nextUrl.searchParams.get("q");
-  const includeHistorical = request.nextUrl.searchParams.get("all") === "1";
+  const statusFilter = parseStatusFilter(
+    request.nextUrl.searchParams.get("estado"),
+    request.nextUrl.searchParams.get("all") === "1"
+  );
   const limit = parseInt(request.nextUrl.searchParams.get("limit") || "0");
 
   let subastas: Subasta[] = [];
   const filters: Record<string, unknown>[] = [];
-  if (!includeHistorical) {
+  if (statusFilter === "activas") {
     filters.push(getActiveSubastasFilter());
+  } else if (statusFilter === "inactivas") {
+    filters.push(getInactiveSubastasFilter());
   }
 
   if (search) {
@@ -23,6 +40,11 @@ export async function GET(request: NextRequest) {
         { direccion: { $regex: search, $options: "i" } },
         { localidad: { $regex: search, $options: "i" } },
         { provincia: { $regex: search, $options: "i" } },
+        { tipoSubasta: { $regex: search, $options: "i" } },
+        { tipoBienDetalle: { $regex: search, $options: "i" } },
+        { valorSubasta: { $regex: search, $options: "i" } },
+        { tasacion: { $regex: search, $options: "i" } },
+        { estado: { $regex: search, $options: "i" } },
         { id: { $regex: search, $options: "i" } },
       ],
     });
@@ -44,8 +66,10 @@ export async function GET(request: NextRequest) {
     const snapshot = await loadSubastasSnapshot();
     subastas = snapshot || [];
 
-    if (!includeHistorical) {
+    if (statusFilter === "activas") {
       subastas = subastas.filter((subasta) => isSubastaActive(subasta));
+    } else if (statusFilter === "inactivas") {
+      subastas = subastas.filter((subasta) => !isSubastaActive(subasta));
     }
 
     if (search) {
@@ -56,6 +80,11 @@ export async function GET(request: NextRequest) {
           subasta.direccion,
           subasta.localidad,
           subasta.provincia,
+          subasta.tipoSubasta,
+          subasta.tipoBienDetalle,
+          subasta.valorSubasta,
+          subasta.tasacion,
+          subasta.estado,
           subasta.id,
         ]
           .filter(Boolean)
@@ -69,7 +98,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return Response.json({ subastas, count: subastas.length });
+  return Response.json({ subastas, count: subastas.length, estado: statusFilter });
 }
 
 // POST — upsert batch of subastas

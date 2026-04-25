@@ -4,15 +4,19 @@ import { useState, useEffect, useCallback } from "react";
 import type { Subasta } from "./scraper";
 import type { AnalysisResult } from "./storage";
 
-export function useSubastas() {
+type SubastaStatusFilter = "activas" | "inactivas" | "todas";
+
+export function useSubastas({ estado = "activas" }: { estado?: SubastaStatusFilter } = {}) {
   const [subastas, setSubastas] = useState<Subasta[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchSubastas = useCallback(async () => {
+    setLoading(true);
     try {
-      // Load the working set with historical coverage too, so the radar
-      // never collapses to an empty state when production has no active auctions.
-      const resp = await fetch("/api/subastas?all=1");
+      const params = new URLSearchParams();
+      if (estado !== "activas") params.set("estado", estado);
+      const qs = params.toString();
+      const resp = await fetch(qs ? `/api/subastas?${qs}` : "/api/subastas");
       const data = await resp.json();
       setSubastas(data.subastas || []);
     } catch (e) {
@@ -20,7 +24,7 @@ export function useSubastas() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [estado]);
 
   // Load from MongoDB on mount
   useEffect(() => {

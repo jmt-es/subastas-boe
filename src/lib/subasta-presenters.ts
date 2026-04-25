@@ -88,6 +88,14 @@ export function formatCurrency(value?: string, options?: { allowZero?: boolean }
 }
 
 export function formatCompactCurrency(value: number): string {
+  if (value === 0) {
+    return new Intl.NumberFormat("es-ES", {
+      style: "currency",
+      currency: "EUR",
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+
   return new Intl.NumberFormat("es-ES", {
     style: "currency",
     currency: "EUR",
