@@ -930,6 +930,8 @@ function DashboardContent() {
             <div className="relative min-w-0">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                id="dashboard-search"
+                name="dashboard-search"
                 placeholder="Buscar expediente, dirección, localidad, valor o ID"
                 value={busqueda}
                 onChange={(event) => setBusqueda(event.target.value)}
@@ -948,6 +950,8 @@ function DashboardContent() {
             <div className="relative min-w-0">
               <Filter className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <select
+                id="dashboard-provincia"
+                name="provincia"
                 value={provinciaFiltro}
                 onChange={(event) => setProvincia(event.target.value)}
                 className="h-10 w-full appearance-none rounded-xl border border-border bg-input pl-9 pr-8 text-sm text-foreground outline-none"
@@ -972,6 +976,8 @@ function DashboardContent() {
             <div className="relative min-w-0">
               <Filter className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <select
+                id="dashboard-tipo"
+                name="tipo"
                 value={tipoFiltro}
                 onChange={(event) => setTipoFiltro(event.target.value)}
                 className="h-10 w-full appearance-none rounded-xl border border-border bg-input pl-9 pr-8 text-sm text-foreground outline-none"
@@ -996,6 +1002,8 @@ function DashboardContent() {
             <div className="relative min-w-0">
               <CalendarClock className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <select
+                id="dashboard-cierre"
+                name="cierre"
                 value={cierreFiltro}
                 onChange={(event) => setCierreFiltro(parseDashboardClosingFilter(event.target.value))}
                 className="h-10 w-full appearance-none rounded-xl border border-border bg-input pl-9 pr-8 text-sm text-foreground outline-none"
@@ -1037,6 +1045,8 @@ function DashboardContent() {
             <div className="relative min-w-[145px]">
               <Brain className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <select
+                id="dashboard-score"
+                name="score"
                 value={scoreFiltro}
                 onChange={(event) => setScoreFiltro(parseDashboardScoreFilter(event.target.value))}
                 className="h-10 w-full appearance-none rounded-xl border border-border bg-input pl-9 pr-8 text-sm text-foreground outline-none"
