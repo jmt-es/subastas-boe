@@ -9,7 +9,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - This repo is always personal-context: GitHub `jmt-es`, Vercel account `jmt-es`, Vercel scope `jmtes-projects`.
 - Before any `gh`, `vercel`, deploy, env/logs, PR, or account-sensitive Git operation, run `/Users/javierhamelyn/bin/work-context summary` from this repo or its worktree.
 - Do not infer account/scope from a global `gh auth status` or a global `vercel whoami`.
-- Inside this repo and its worktrees, raw `gh` and raw `vercel` are context-aware shims. Outside them, force the profile with `/Users/javierhamelyn/bin/gh-personal` and `/Users/javierhamelyn/bin/vercel-personal`.
+- Canonical rule: inside this repo and its worktrees, use plain `gh`, `git`, and `vercel`.
+- To force the profile anywhere, use `/Users/javierhamelyn/bin/gh-personal` and `/Users/javierhamelyn/bin/vercel-personal`. The force commands use hyphens, not spaces.
+- To remove doubt, run `/Users/javierhamelyn/bin/work-context verify` from this repo or its worktree.
 
 ## Repo Notes
 

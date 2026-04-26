@@ -1,0 +1,95 @@
+{
+  "timestamp": "2026-04-12T08:08:57.832Z",
+  "results": [
+    {
+      "id": "SUB-JA-2026-259129",
+      "oldScore": 65,
+      "gpt-4.1-mini": 44,
+      "gpt-5.4-mini": 58
+    },
+    {
+      "id": "SUB-JA-2026-259427",
+      "oldScore": 65,
+      "gpt-4.1-mini": 58,
+      "gpt-5.4-mini": 63
+    },
+    {
+      "id": "SUB-JA-2025-256202",
+      "oldScore": 65,
+      "gpt-4.1-mini": 59,
+      "gpt-5.4-mini": 58
+    },
+    {
+      "id": "SUB-RC-2026-4690000146928",
+      "oldScore": 75,
+      "gpt-4.1-mini": 78,
+      "gpt-5.4-mini": 54.7
+    },
+    {
+      "id": "SUB-JA-2026-257327",
+      "oldScore": 65,
+      "gpt-4.1-mini": 68,
+      "gpt-5.4-mini": 58
+    },
+    {
+      "id": "SUB-JA-2026-257476",
+      "oldScore": 65,
+      "gpt-4.1-mini": 48,
+      "gpt-5.4-mini": 34
+    },
+    {
+      "id": "SUB-NH-2026-1606130",
+      "oldScore": 45,
+      "gpt-4.1-mini": 34,
+      "gpt-5.4-mini": 68.4
+    },
+    {
+      "id": "SUB-RC-2026-0026I20250305",
+      "oldScore": 45,
+      "gpt-4.1-mini": 42,
+      "gpt-5.4-mini": 54
+    },
+    {
+      "id": "SUB-RC-2026-0026I20250045",
+      "oldScore": 10,
+      "gpt-4.1-mini": 22,
+      "gpt-5.4-mini": "ERR"
+    },
+    {
+      "id": "SUB-JA-2026-256756",
+      "oldScore": 65,
+      "gpt-4.1-mini": 54,
+      "gpt-5.4-mini": "ERR"
+    },
+    {
+      "id": "SUB-JA-2026-259060",
+      "oldScore": 65,
+      "gpt-4.1-mini": 68,
+      "gpt-5.4-mini": 58
+    },
+    {
+      "id": "SUB-JA-2026-259086",
+      "oldScore": 65,
+      "gpt-4.1-mini": 68,
+      "gpt-5.4-mini": 68.4
+    },
+    {
+      "id": "SUB-AT-2026-26R4686001043",
+      "oldScore": 65,
+      "gpt-4.1-mini": 34,
+      "gpt-5.4-mini": 46
+    },
+    {
+      "id": "SUB-JA-2026-259869",
+      "oldScore": 65,
+      "gpt-4.1-mini": 57,
+      "gpt-5.4-mini": 58
+    },
+    {
+      "id": "SUB-RC-2026-0026I20250196",
+      "oldScore": 25,
+      "gpt-4.1-mini": 32,
+      "gpt-5.4-mini": 44
+    }
+  ]
+}

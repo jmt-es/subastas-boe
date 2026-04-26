@@ -1,0 +1,99 @@
+ALICANTE AUCTIONS DATA COLLECTION - SUMMARY
+=============================================
+Collection Date: April 12, 2026
+Total Auctions: 12
+Data File: alicante-auctions.json
+
+AUCTIONS COLLECTED:
+1. SUB-JA-2026-258972 - Alicante - Apartment/Vivienda
+   Location: Avenida Alcoy 76, Alicante
+   Value: 146,012€
+   Type: Judicial (Community debt execution)
+
+2. SUB-RC-2026-0026I20250334 - Redován - Garage
+   Location: Calle Pascual Martínez 69
+   Value: 4,721.92€
+   Type: Tax recovery (Suma Gestión Tributaria)
+
+3. SUB-RC-2026-0026I20250312 - Benissa - Solar/Land
+   Location: Partida Fanadix 38
+   Value: 202,924.53€
+   Type: Tax recovery
+
+4. SUB-RC-2026-0026I20250305 - Banyeres de Mariola - Garage/Trastero
+   Location: Calle Jaime I, 7
+   Value: 4,368.74€
+   Type: Tax recovery
+
+5. SUB-RC-2026-0026I20250255 - San Vicente del Raspeig - Mixed (Garages & Storage)
+   Location: Calle San Bernardo 7
+   Value: 48,551.93€
+   Type: Tax recovery
+
+6. SUB-RC-2026-0026I20250254 - Agost - Garage Parking (1/12 share)
+   Location: Avenida Elche 4
+   Value: 8,081.72€
+   Type: Tax recovery
+
+7. SUB-RC-2026-0026I20250226 - La Vila Joiosa - Apartment VPO
+   Location: Avenida Benidorm 25
+   Value: 101,018.69€
+   Type: Tax recovery (Protected housing)
+
+8. SUB-RC-2026-0026I20250185 - Algorfa - Duplex (50% share)
+   Location: Calle Portugal 47
+   Value: 136,165.89€
+   Type: Tax recovery
+
+9. SUB-RC-2026-0026I20250182 - Tibi - Storage Room/Trastero
+   Location: Calle Raval el 58
+   Value: 3,153.60€
+   Type: Tax recovery
+
+10. SUB-RC-2026-0026I20250145 - San Miguel de Salinas - Small Apartment
+    Location: Calle Lentisco 2
+    Value: 50,538.67€
+    Type: Tax recovery
+
+11. SUB-RC-2026-0026I20250104 - Orihuela - Industrial Building (50% share)
+    Location: Camino de Beniel 90
+    Value: 100,781.05€
+    Type: Tax recovery
+
+12. SUB-RC-2026-0026I20250103 - Mutxamel - Storage Room/Trastero
+    Location: Calle Villena 12
+    Value: 2,747.52€
+    Type: Tax recovery
+
+AUCTION DETAILS BY FIELD:
+Each auction record includes:
+- Complete auction data with all 40+ fields from API
+- Full legal and property descriptions
+- Document URLs for official certificates
+- Contact information for authorities
+- Financial details (deposit, minimum bid, appraisal)
+- Property status and possession information
+- AI analysis with:
+  * Opportunity score (15-75 rating)
+  * Recommendation (buy/observe/discard)
+  * Economic analysis and ROI estimates
+  * Risk assessment
+  * Legal situation summary
+  * Possession timeline estimates
+  * Bidding strategy recommendations
+
+DATA COVERAGE:
+✓ All 12 requested auction URLs fetched
+✓ Analysis endpoint checked for each auction
+✓ Complete JSON responses included
+✓ All fields preserved (no truncation)
+✓ Proper array structure for multi-auction processing
+
+FILE STRUCTURE:
+The JSON file contains an array of 12 auction objects.
+Each object has:
+- "subasta" (auction data)
+- "analysis" (AI analysis from analysis endpoint)
+
+Total file size: ~34 KB
+Valid JSON: Confirmed

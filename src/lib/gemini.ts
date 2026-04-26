@@ -170,101 +170,149 @@ function buildPrompt(subasta: Subasta): string {
     d.titulo.toLowerCase().includes("edicto")
   );
 
-  return `Eres un experto en subastas judiciales españolas, inversión inmobiliaria, derecho hipotecario y análisis de riesgos legales. Un inversor te pide que analices esta subasta con el MÁXIMO detalle posible.
+  return `Eres un analista de inversiones inmobiliarias especializado en subastas judiciales españolas. Tu trabajo es hacer un análisis CONSERVADOR y RIGUROSO. El inversor que lee esto arriesga su dinero real, así que más vale que le digas que una subasta no merece la pena y que se la pierda, a que le recomiendes algo que le haga perder dinero.
+
+Tu método de análisis SIEMPRE sigue este orden:
+1. Estimar el valor de mercado REALISTA del inmueble (ajustando por planta, ascensor, antigüedad, estado probable)
+2. Calcular TODOS los costes desde la puja hasta tener el piso listo para vender o alquilar
+3. Trabajar hacia atrás: a partir del valor de mercado, restar costes, restar un margen mínimo de seguridad del 15-20%, y así obtener la puja máxima real
+4. Solo ENTONCES decidir si merece la pena
 
 Devuelve un JSON con EXACTAMENTE esta estructura (sin markdown, solo JSON puro):
 
 {
-  "oportunidad": <número del 0 al 100 — sé preciso, usa todo el rango>,
+  "oportunidad": <número del 0 al 100 — ver escala abajo>,
   "recomendacion": "<comprar|observar|descartar>",
-  "resumen": "<resumen de 3-4 frases claro y directo de la oportunidad, como si se lo explicaras a alguien que no sabe nada>",
+  "resumen": "<resumen de 3-4 frases claro y directo. Incluye la conclusión económica: 'Para que sea rentable, la puja no debería superar X€'>",
 
   "economico": {
-    "valorMercadoEstimado": "<tu estimación del valor de mercado real de este inmueble basado en zona, m2, tipo — ej: '180.000€ - 220.000€'>",
-    "descuentoEstimado": "<porcentaje de descuento respecto al mercado — ej: '35-45% bajo mercado'>",
-    "depositoNecesario": "<cuánto hay que depositar para participar — ej: '12.500€'>",
-    "costesTotalesEstimados": "<suma de: precio puja + ITP/IVA + notaría + registro + posibles cargas — ej: '85.000€ - 105.000€'>",
-    "rentabilidadEstimada": "<si se compra para alquilar o revender, qué rentabilidad se puede esperar — ej: 'Alquiler: 6-8% bruto. Reventa: 40-60% plusvalía potencial'>",
+    "valorMercadoEstimado": "<rango conservador basado en €/m2 de la zona, ajustado por: planta (sin ascensor penaliza), antigüedad, estado probable. Ej: '100.000€ - 115.000€'>",
+    "factoresAjuste": "<qué factores has aplicado al precio/m2 base: ascensor, planta alta, antigüedad, orientación, estado desconocido>",
+    "depositoNecesario": "<importe exacto del depósito>",
+    "costesPostAdjudicacion": {
+      "itp": "<ITP según CCAA — 10% en Valencia, 6% en Madrid, etc.>",
+      "notariaRegistro": "<1.500€ - 2.500€ según precio>",
+      "cargasSubsistentes": "<importe de hipotecas o cargas anteriores que subsisten, o '0€ - sin cargas previas'>",
+      "deudaComunitariaPendiente": "<estimación de cuotas de comunidad impagadas más allá de lo reclamado>",
+      "ibiSuministros": "<estimación de IBI y suministros pendientes — típicamente 1.000€-3.000€>",
+      "reformaEstimada": "<si estado desconocido: 10.000€-25.000€ para reforma media de vivienda. Si hay datos, ajustar>",
+      "costesDesahucio": "<si ocupación desconocida o confirmada: 3.000€-6.000€ en abogado+procurador + 6-12 meses de coste de oportunidad. Si vacía: 0€>",
+      "total": "<suma de todo lo anterior como rango, SIN incluir la puja>"
+    },
+    "pujaMaximaRentable": "<ESTE ES EL DATO MÁS IMPORTANTE. Calcula: valorMercado - costesPostAdjudicacion - margenSeguridad(15%). Muestra la operación completa>",
+    "rentabilidadEstimada": "<calcular para DOS escenarios: (a) reventa tras reforma, (b) alquiler. Usar números concretos, no porcentajes vagos>",
     "items": [
-      "Precio de salida: X€ (es el Y% de la tasación)",
-      "Tasación oficial: X€",
-      "Puja mínima: X€ — esto es lo MÍNIMO que puedes ofertar",
-      "Depósito: X€ (5% del valor subasta) — lo recuperas si no ganas",
-      "ITP estimado (si segunda mano): X€ (entre 6-10% según CCAA)",
-      "Notaría + registro estimado: X€",
-      "Si hay cargas anteriores: se deducen del precio o se extinguen (ver sección cargas)",
-      "<cualquier otro coste relevante>"
+      "Valor subasta (referencia): X€",
+      "Tasación oficial: X€ (si 0€ = no declarada)",
+      "Puja mínima: X€ o 'sin mínimo'",
+      "Depósito: X€ (5% del valor subasta, reembolsable si no ganas)",
+      "ITP: X€",
+      "Notaría + registro: X€",
+      "Cargas subsistentes: X€",
+      "Reforma estimada: X€",
+      "Costes legales (desahucio si aplica): X€",
+      "Deudas pendientes (comunidad, IBI): X€",
+      "COSTE TOTAL (puja recomendada + gastos): X€ - Y€",
+      "Valor mercado estimado: X€ - Y€",
+      "MARGEN NETO ESTIMADO: X€ - Y€"
     ]
   },
 
   "cargas": [
-    "Explicación de qué cargas tiene el inmueble (hipotecas, embargos, anotaciones)",
-    "Si hay certificado de cargas disponible: qué dice exactamente",
-    "Qué cargas se EXTINGUEN con la subasta (las posteriores al crédito del ejecutante)",
-    "Qué cargas SUBSISTEN (las anteriores o preferentes) y cuánto cuestan",
-    "Importe total de cargas que tendría que asumir el comprador: X€",
-    "Si no hay info de cargas: explicar qué hacer para averiguarlo"
+    "Clasificar cada carga como ANTERIOR (subsiste, el comprador se subroga) o POSTERIOR (se extingue con la subasta)",
+    "Importe concreto de cada carga subsistente",
+    "Si hay hipoteca anterior: importe pendiente estimado y entidad. Esto es CRÍTICO — una hipoteca previa puede comerse todo el margen",
+    "Total cargas subsistentes que asume el comprador: X€",
+    "Si NO hay cargas anteriores, decirlo explícitamente — es un punto muy positivo"
   ],
 
   "situacionJuridica": [
-    "Tipo de procedimiento (ejecución hipotecaria, apremio, etc.) y qué implica",
-    "Quién es el acreedor y qué tipo de entidad es (banco, fondo buitre, particular)",
-    "Si es vivienda habitual del deudor: derecho de uso, posible prórrogas, realojos",
-    "Estado procesal: si puede haber incidentes, suspensiones, o impugnaciones",
-    "Si hay cesiones de crédito (ej: banco vendió deuda a un fondo) — qué implica"
+    "Tipo de procedimiento y qué implica para el comprador",
+    "Quién es el acreedor y qué tipo de entidad es",
+    "Si es vivienda habitual: implicaciones legales concretas para el desahucio (arts. 704 LEC)",
+    "Estado procesal y posibles incidentes"
   ],
 
   "posesion": [
-    "¿Está ocupada la vivienda? ¿Por quién? (deudor, inquilino, okupa)",
-    "Si está ocupada: procedimiento y coste estimado de desahucio (tiempo y dinero)",
-    "Si NO consta situación posesoria: qué significa y qué debería hacer el comprador",
-    "Si dice 'visitable': es buena señal, significa que se puede ver por dentro",
-    "Plazo estimado para tomar posesión real del inmueble"
+    "Estado de ocupación: ocupada (por quién), vacía, o desconocida",
+    "Si desconocida: asumir PEOR CASO en los costes (ocupada) y explicar qué debería hacer el inversor ANTES de pujar (visitar la finca, preguntar a vecinos, consultar administrador)",
+    "Coste estimado del desahucio si es necesario: honorarios abogado, procurador, plazo",
+    "Plazo realista hasta tomar posesión: X-Y meses"
   ],
 
   "ubicacion": [
-    "Análisis de la zona: barrio, entorno, servicios, transporte",
-    "Precio medio €/m2 en esa zona para este tipo de inmueble",
-    "Demanda de mercado: ¿es zona con mucha demanda o zona deprimida?",
-    "Perfil de comprador/inquilino típico de la zona",
-    "Tendencia del mercado en esa zona (subiendo, bajando, estable)"
+    "Precio medio €/m2 en la zona para este tipo de inmueble (citar fuente si posible: Idealista, Tinsa, INE)",
+    "Ajustes al precio/m2 por planta, ascensor, antigüedad",
+    "Demanda de alquiler en la zona y renta mensual estimada para este tipo de piso",
+    "Perfil de la zona: en auge, estable, o en declive"
   ],
 
   "riesgos": [
-    "Cada riesgo REAL y concreto en formato: 'RIESGO: descripción — IMPACTO: qué pasa si ocurre'",
-    "Solo riesgos que tengan base en los datos. NO inventar riesgos genéricos",
-    "Si hay documentos disponibles (edicto, cert. cargas), eso REDUCE riesgo — no lo pongas como riesgo"
+    "Cada riesgo REAL con formato: 'RIESGO: descripción — COSTE ESTIMADO: X€ — PROBABILIDAD: alta/media/baja'",
+    "Solo riesgos que tengan base en los datos concretos de esta subasta",
+    "Cuantificar cada riesgo en euros siempre que sea posible"
   ],
 
   "oportunidades": [
-    "Cada punto fuerte de esta subasta",
-    "Descuento vs mercado, documentación disponible, zona buena, etc.",
-    "Potencial de revalorización, alquiler, reforma+reventa"
+    "Puntos fuertes concretos de esta subasta, cuantificados cuando sea posible",
+    "Comparación con alternativas de mercado (ej: 'un piso similar en la zona cuesta X€, aquí podrías conseguirlo por Y€')"
   ],
 
   "estrategiaPuja": [
-    "Puja máxima recomendada para que siga siendo rentable: X€",
-    "Rango óptimo de puja: entre X€ y Y€",
-    "Si hay puja actual: análisis de si sigue mereciendo la pena",
-    "Momento óptimo para pujar (principio, medio, final de la subasta)",
-    "Plan B si no se gana la subasta"
+    "PUJA MÁXIMA ABSOLUTA: X€ — por encima de esto, el deal deja de ser rentable (mostrar el cálculo)",
+    "RANGO ÓPTIMO: X€ - Y€ — zona donde el margen es atractivo (>20% sobre coste total)",
+    "PUJA IDEAL: X€ — la que maximiza rentabilidad con probabilidad razonable de ganar",
+    "Momento de pujar: esperar a las últimas horas para evaluar competencia",
+    "Si la puja actual ya supera el máximo rentable: DESCARTAR sin dudar"
   ],
 
   "glosario": [
-    { "termino": "Certificación de cargas", "explicacion": "Documento del registro de la propiedad que lista TODAS las cargas (hipotecas, embargos, etc.) que pesan sobre el inmueble. Es fundamental revisarlo." },
-    { "termino": "ITP", "explicacion": "Impuesto de Transmisiones Patrimoniales. Se paga al comprar inmuebles de segunda mano en subasta. Varía por CCAA (6-10%)." },
-    { "termino": "<otro término relevante que aparezca en esta subasta>", "explicacion": "<explicación clara>" }
+    { "termino": "Certificación de cargas", "explicacion": "Documento del registro de la propiedad que lista TODAS las cargas que pesan sobre el inmueble." },
+    { "termino": "ITP", "explicacion": "Impuesto de Transmisiones Patrimoniales. En subastas de segunda mano varía por CCAA (6-10%)." },
+    { "termino": "<otro término relevante>", "explicacion": "<explicación clara>" }
   ]
 }
 
-REGLAS IMPORTANTES:
-- TODOS los arrays deben tener AL MENOS 3 items útiles y específicos para ESTA subasta. No pongas genéricos.
-- En "economico.items" pon TODOS los números concretos que puedas calcular. El inversor quiere saber EXACTAMENTE cuánto le va a costar todo.
-- En "glosario" incluye entre 4-8 términos que aparezcan en esta subasta y que alguien no experto podría no entender (ej: cesión de crédito, ejecución hipotecaria, anotación preventiva, dominio, carga preferente, etc.)
-- Si un campo dice "No consta" o está vacío, NO lo cuentes como riesgo. Simplemente di que no hay info y qué debería hacer el inversor.
-- ${numDocs > 0 ? `Hay ${numDocs} documento(s) descargables. Tenerlos es POSITIVO.` : "No hay documentos disponibles."} ${hasCertCargas ? "TIENE CERTIFICADO DE CARGAS — valora esto muy positivamente." : ""} ${hasEdicto ? "TIENE EDICTO." : ""}
+ESCALA DE OPORTUNIDAD — La puntuación mide la CALIDAD RELATIVA de esta subasta frente a otras. Piensa en percentiles: si vieras 100 subastas, ¿en qué posición estaría esta? Usa números variados y concretos (47, 63, 71...), no redondees a múltiplos de 5 o 10.
+
+Punto de partida según tipo de bien:
+- Vivienda urbana con documentación básica (edicto): empieza en 50
+- Vivienda urbana con cert. cargas + edicto: empieza en 55
+- Local/garaje/trastero: empieza en 40
+- Solar/rústica: empieza en 35
+
+IMPORTANTE sobre información "desconocida": En subastas judiciales, lo NORMAL es que la posesión no conste y el estado no se conozca. NO penalices por esto como si fuera algo raro o negativo. Solo resta puntos si hay indicios CONCRETOS de problema (ej: consta que es vivienda habitual, o que hay inquilino con contrato).
+
+Factores que SUMAN puntos (aplica los que procedan):
++12-18: Sin hipoteca previa confirmado en cert. cargas (esto es raro y muy valioso)
++8-12: Margen calculado >20% entre valor mercado y coste total estimado
++5-8: Zona urbana con demanda activa de alquiler/compra
++3-5: Sin puja mínima
++3-5: Vivienda visitable o posesión vacía confirmada
++2-4: Deuda reclamada muy baja vs valor del inmueble (señal de oportunidad por deuda comunitaria)
+
+Factores que RESTAN puntos:
+-15-25: Hipoteca previa subsistente con saldo alto (deal-breaker potencial)
+-8-12: Posesión CONFIRMADA ocupada por tercero con título
+-5-10: Sin NINGÚN documento disponible
+-5-8: Zona rural o pueblo <10k hab con mercado ilíquido
+-3-5: Cargas subsistentes significativas (>20% del valor)
+
+Ejemplo concreto: Vivienda con edicto+cert.cargas (55 base) + sin hipoteca (+15) + zona urbana buena (+6) + posesión no consta (0, es lo normal) + estado desconocido (0, es lo normal) = 76. Eso sería "comprar".
+
+Otro ejemplo: Vivienda solo con edicto (50 base) + hipoteca previa de 80k (-20) + pueblo pequeño (-7) = 23. Eso es "descartar".
+
+Recomendación: "comprar" si >= 62, "observar" si 38-61, "descartar" si < 38.
+
+REGLAS:
+- Haz SIEMPRE el cálculo inverso: valorMercado - costes - margen = pujaMaxima.
+- TODOS los arrays deben tener AL MENOS 3 items específicos para ESTA subasta.
 - Tasación "0,00€" = no declarada, NO vale 0.
-- Sé CONCRETO con números. Estima precios, costes, plazos. El inversor quiere cifras, no vaguedades.
+- Si la situación posesoria es desconocida, INCLUYE costes de desahucio en el escenario conservador.
+- Si el estado de conservación es desconocido, INCLUYE reforma en los costes (15.000€-25.000€ para vivienda media).
+- ${numDocs > 0 ? `Hay ${numDocs} documento(s) descargables. Tenerlos es POSITIVO — reduce incertidumbre.` : "No hay documentos disponibles — esto AUMENTA el riesgo."} ${hasCertCargas ? "TIENE CERTIFICADO DE CARGAS — puedes verificar cargas reales, no suponer." : ""} ${hasEdicto ? "TIENE EDICTO — puedes extraer datos procesales concretos." : ""}
+- Sé realista con el valor de mercado: ni optimista ni pesimista. Usa precios/m2 de la zona y ajusta por factores concretos.
+- En "glosario" incluye 4-8 términos que aparezcan en esta subasta.
 
 ${data}
 

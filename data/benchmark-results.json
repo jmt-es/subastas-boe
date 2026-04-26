@@ -1,0 +1,174 @@
+{
+  "timestamp": "2026-04-12T07:18:57.962Z",
+  "count": 20,
+  "results": [
+    {
+      "id": "SUB-RC-2026-0026I20250045",
+      "oldScore": 10,
+      "newScore": 15,
+      "oldRec": "descartar",
+      "newRec": "descartar",
+      "delta": 5
+    },
+    {
+      "id": "SUB-RC-2026-0026I20250196",
+      "oldScore": 25,
+      "newScore": 22,
+      "oldRec": "descartar",
+      "newRec": "descartar",
+      "delta": -3
+    },
+    {
+      "id": "SUB-JA-2026-259349",
+      "oldScore": 35,
+      "newScore": 32,
+      "oldRec": "observar",
+      "newRec": "descartar",
+      "delta": -3
+    },
+    {
+      "id": "SUB-JA-2026-259058",
+      "oldScore": 65,
+      "newScore": 48,
+      "oldRec": "observar",
+      "newRec": "observar",
+      "delta": -17
+    },
+    {
+      "id": "SUB-JA-2026-259438",
+      "oldScore": 45,
+      "newScore": 42,
+      "oldRec": "observar",
+      "newRec": "observar",
+      "delta": -3
+    },
+    {
+      "id": "SUB-JA-2026-259436",
+      "oldScore": 65,
+      "newScore": 48,
+      "oldRec": "observar",
+      "newRec": "observar",
+      "delta": -17
+    },
+    {
+      "id": "SUB-JA-2026-257623",
+      "oldScore": 65,
+      "newScore": 34,
+      "oldRec": "observar",
+      "newRec": "descartar",
+      "delta": -31
+    },
+    {
+      "id": "SUB-JA-2026-259859",
+      "oldScore": 65,
+      "newScore": 42,
+      "oldRec": "observar",
+      "newRec": "observar",
+      "delta": -23
+    },
+    {
+      "id": "SUB-JA-2026-257476",
+      "oldScore": 65,
+      "newScore": 34,
+      "oldRec": "observar",
+      "newRec": "descartar",
+      "delta": -31
+    },
+    {
+      "id": "SUB-JA-2026-259099",
+      "oldScore": 65,
+      "newScore": 32,
+      "oldRec": "observar",
+      "newRec": "descartar",
+      "delta": -33
+    },
+    {
+      "id": "SUB-RC-2026-0026I20250298",
+      "oldScore": 65,
+      "newScore": 45,
+      "oldRec": "comprar",
+      "newRec": "observar",
+      "delta": -20
+    },
+    {
+      "id": "SUB-JA-2026-256473",
+      "oldScore": 65,
+      "newScore": 22,
+      "oldRec": "observar",
+      "newRec": "descartar",
+      "delta": -43
+    },
+    {
+      "id": "SUB-JA-2026-258580",
+      "oldScore": 65,
+      "newScore": 48,
+      "oldRec": "observar",
+      "newRec": "observar",
+      "delta": -17
+    },
+    {
+      "id": "SUB-JA-2026-259559",
+      "oldScore": 65,
+      "newScore": 58,
+      "oldRec": "observar",
+      "newRec": "observar",
+      "delta": -7
+    },
+    {
+      "id": "SUB-JA-2026-258486",
+      "oldScore": 65,
+      "newScore": 34,
+      "oldRec": "observar",
+      "newRec": "descartar",
+      "delta": -31
+    },
+    {
+      "id": "SUB-JA-2026-259845",
+      "oldScore": 65,
+      "newScore": 22,
+      "oldRec": "observar",
+      "newRec": "descartar",
+      "delta": -43
+    },
+    {
+      "id": "SUB-JA-2025-256013",
+      "oldScore": 65,
+      "newScore": 42,
+      "oldRec": "observar",
+      "newRec": "observar",
+      "delta": -23
+    },
+    {
+      "id": "SUB-RC-2026-0026I20250271",
+      "oldScore": 65,
+      "newScore": 42,
+      "oldRec": "observar",
+      "newRec": "observar",
+      "delta": -23
+    },
+    {
+      "id": "SUB-RC-2026-0026I20250188",
+      "oldScore": 75,
+      "newScore": 42,
+      "oldRec": "comprar",
+      "newRec": "observar",
+      "delta": -33
+    },
+    {
+      "id": "SUB-JA-2020-160010",
+      "oldScore": 75,
+      "newScore": 45,
+      "oldRec": "comprar",
+      "newRec": "observar",
+      "delta": -30
+    }
+  ],
+  "summary": {
+    "uniqueOldScores": 6,
+    "uniqueNewScores": 8,
+    "avgOld": 58.75,
+    "avgNew": 37.45,
+    "old65pct": 70,
+    "new65pct": 0
+  }
+}

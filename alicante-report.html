@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Subastas Alicante — Análisis Profundo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #0f1117; color: #e4e4e7; line-height: 1.6; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+  h1 { font-size: 1.8rem; margin-bottom: 8px; color: #fff; }
+  .subtitle { color: #71717a; margin-bottom: 30px; font-size: 0.95rem; }
+  .summary-bar { display: flex; gap: 16px; margin-bottom: 30px; flex-wrap: wrap; }
+  .summary-card { background: #1a1b23; border: 1px solid #27272a; border-radius: 12px; padding: 16px 20px; flex: 1; min-width: 150px; }
+  .summary-card .label { font-size: 0.75rem; color: #71717a; text-transform: uppercase; letter-spacing: 0.05em; }
+  .summary-card .value { font-size: 1.5rem; font-weight: 700; color: #fff; margin-top: 4px; }
+  .summary-card .value.green { color: #22c55e; }
+  .summary-card .value.yellow { color: #eab308; }
+  .summary-card .value.red { color: #ef4444; }
+
+  .auction-card { background: #1a1b23; border: 1px solid #27272a; border-radius: 16px; margin-bottom: 20px; overflow: hidden; transition: border-color 0.2s; }
+  .auction-card:hover { border-color: #3f3f46; }
+  .auction-card.tier-1 { border-left: 4px solid #22c55e; }
+  .auction-card.tier-2 { border-left: 4px solid #eab308; }
+  .auction-card.tier-3 { border-left: 4px solid #ef4444; }
+
+  .card-header { padding: 20px 24px; display: flex; justify-content: space-between; align-items: flex-start; cursor: pointer; }
+  .card-header:hover { background: #1f2029; }
+  .card-title { font-size: 1.1rem; font-weight: 600; color: #fff; }
+  .card-location { color: #a1a1aa; font-size: 0.85rem; margin-top: 4px; }
+  .card-badges { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+  .badge { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+  .badge.comprar { background: #052e16; color: #22c55e; }
+  .badge.observar { background: #422006; color: #eab308; }
+  .badge.descartar { background: #450a0a; color: #ef4444; }
+  .score { font-size: 1.4rem; font-weight: 800; }
+  .score.high { color: #22c55e; }
+  .score.mid { color: #eab308; }
+  .score.low { color: #ef4444; }
+
+  .card-body { padding: 0 24px 24px; display: none; }
+  .card-body.open { display: block; }
+  .section { margin-bottom: 20px; }
+  .section-title { font-size: 0.8rem; color: #71717a; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; font-weight: 600; }
+
+  .cost-table { width: 100%; border-collapse: collapse; }
+  .cost-table td { padding: 6px 0; font-size: 0.9rem; }
+  .cost-table td:last-child { text-align: right; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.85rem; }
+  .cost-table tr.total { border-top: 2px solid #3f3f46; font-weight: 700; }
+  .cost-table tr.total td { padding-top: 10px; color: #fff; }
+  .cost-table tr.highlight td { color: #22c55e; font-weight: 600; }
+  .cost-table tr.negative td { color: #ef4444; }
+
+  .risk-item { padding: 8px 12px; background: #27272a; border-radius: 8px; margin-bottom: 6px; font-size: 0.85rem; }
+  .risk-item.high { border-left: 3px solid #ef4444; }
+  .risk-item.med { border-left: 3px solid #eab308; }
+  .risk-item.low { border-left: 3px solid #22c55e; }
+
+  .links { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .link-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 0.8rem; text-decoration: none; font-weight: 500; transition: background 0.2s; }
+  .link-btn.maps { background: #1a3a1a; color: #4ade80; }
+  .link-btn.maps:hover { background: #1e4d1e; }
+  .link-btn.boe { background: #1a2a3a; color: #60a5fa; }
+  .link-btn.boe:hover { background: #1e3550; }
+  .link-btn.app { background: #2a1a3a; color: #c084fc; }
+  .link-btn.app:hover { background: #351e50; }
+
+  .verdict { padding: 16px; background: #111827; border-radius: 12px; border: 1px solid #1f2937; margin-top: 12px; font-size: 0.9rem; }
+  .verdict strong { color: #fff; }
+
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .filter-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid #3f3f46; background: transparent; color: #a1a1aa; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; }
+  .filter-btn:hover, .filter-btn.active { background: #27272a; color: #fff; border-color: #52525b; }
+
+  @media (max-width: 768px) {
+    .card-header { flex-direction: column; gap: 12px; }
+    .summary-bar { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Subastas Alicante — Análisis Profundo</h1>
+  <p class="subtitle">12 subastas activas en provincia de Alicante · Generado 12 abril 2026 · Todas cierran 13 abril 18:00</p>
+
+  <div class="summary-bar">
+    <div class="summary-card"><div class="label">Total</div><div class="value">12</div></div>
+    <div class="summary-card"><div class="label">Interesantes</div><div class="value green">2</div></div>
+    <div class="summary-card"><div class="label">Observar</div><div class="value yellow">3</div></div>
+    <div class="summary-card"><div class="label">Descartar</div><div class="value red">7</div></div>
+  </div>
+
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="filterCards('all')">Todas (12)</button>
+    <button class="filter-btn" onclick="filterCards('tier-1')">Interesantes (2)</button>
+    <button class="filter-btn" onclick="filterCards('tier-2')">Observar (3)</button>
+    <button class="filter-btn" onclick="filterCards('tier-3')">Descartar (7)</button>
+  </div>
+
+  <div id="cards">
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- TIER 1: INTERESANTES -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+
+    <div class="auction-card tier-1" data-tier="tier-1">
+      <div class="card-header" onclick="toggle(this)">
+        <div>
+          <div class="card-title">Piso 3 hab · Avda. Alcoy 76, 3º Izq</div>
+          <div class="card-location">📍 ALICANTE · 03009 · Vivienda · Deuda comunitaria 2.431€</div>
+        </div>
+        <div class="card-badges">
+          <span class="score high">72</span>
+          <span class="badge comprar">Comprar</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="section">
+          <div class="section-title">Análisis económico (cálculo inverso)</div>
+          <table class="cost-table">
+            <tr><td>Valor mercado estimado (82m², 1.300€/m², 3ª sin ascensor -15%)</td><td>~90.000 - 105.000€</td></tr>
+            <tr><td>ITP (10% C. Valenciana, sobre puja)</td><td>-6.000€</td></tr>
+            <tr><td>Notaría + registro</td><td>-1.500€</td></tr>
+            <tr><td>Cargas subsistentes (cert. cargas LIMPIA, sin hipoteca)</td><td>0€</td></tr>
+            <tr><td>Deuda comunidad (1.870 + intereses + meses extra)</td><td>-3.500€</td></tr>
+            <tr><td>IBI + suministros pendientes</td><td>-2.000€</td></tr>
+            <tr><td>Reforma estimada (estado desconocido, propietaria morosa)</td><td>-18.000€</td></tr>
+            <tr><td>Costes desahucio (posesión no consta)</td><td>-4.500€</td></tr>
+            <tr class="total"><td>Total costes post-adjudicación</td><td>~35.500€</td></tr>
+            <tr><td>Margen seguridad 15%</td><td>-14.250€</td></tr>
+            <tr class="total highlight"><td><strong>PUJA MÁXIMA RENTABLE</strong></td><td><strong>~55.000 - 60.000€</strong></td></tr>
+            <tr><td>Rango óptimo de puja</td><td>45.000 - 55.000€</td></tr>
+          </table>
+        </div>
+        <div class="section">
+          <div class="section-title">Por qué es interesante</div>
+          <div class="risk-item low">✅ Certificación de cargas LIMPIA — no hay hipoteca previa (confirmado en documento)</div>
+          <div class="risk-item low">✅ Deuda ridícula (2.431€) sobre un piso de 146k — oportunidad por ejecución comunitaria</div>
+          <div class="risk-item low">✅ Documentación completa: edicto + cert. cargas disponibles</div>
+          <div class="risk-item low">✅ Sin puja mínima — flexibilidad total</div>
+        </div>
+        <div class="section">
+          <div class="section-title">Riesgos</div>
+          <div class="risk-item med">⚠️ Posesión no consta — posible desahucio 6-12 meses (~4.500€)</div>
+          <div class="risk-item med">⚠️ Estado desconocido — propietaria que no paga 1.870€ de comunidad probablemente no mantenía el piso</div>
+          <div class="risk-item low">ℹ️ 3ª planta sin ascensor confirmado — penaliza valor mercado y demanda</div>
+        </div>
+        <div class="verdict">
+          <strong>Veredicto:</strong> La mejor subasta de Alicante. Sin hipoteca previa (raro), docs completos, zona con demanda. El riesgo principal es la ocupación. Si pujas por debajo de 60k y el piso está vacío, puedes sacar 25-35k de margen en reventa tras reforma. Para alquiler a 550-650€/mes, el yield sería 7-8% bruto sobre inversión de ~95k.
+        </div>
+        <div class="links">
+          <a href="https://www.google.com/maps/search/Avenida+Alcoy+76,+Alicante,+03009" target="_blank" class="link-btn maps">📍 Ver en Google Maps</a>
+          <a href="https://subastas.boe.es/reg/detalleSubasta.php?idSub=SUB-JA-2026-258972" target="_blank" class="link-btn boe">📄 Ver en BOE</a>
+          <a href="https://subastas-boe.vercel.app/subastas/SUB-JA-2026-258972" target="_blank" class="link-btn app">🔍 Ver dossier</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="auction-card tier-1" data-tier="tier-1">
+      <div class="card-header" onclick="toggle(this)">
+        <div>
+          <div class="card-title">Vivienda · Calle Lentisco 2, San Miguel de Salinas</div>
+          <div class="card-location">📍 SAN MIGUEL DE SALINAS · 03193 · Vivienda · Recaudación tributaria</div>
+        </div>
+        <div class="card-badges">
+          <span class="score high">64</span>
+          <span class="badge comprar">Comprar</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="section">
+          <div class="section-title">Análisis económico</div>
+          <table class="cost-table">
+            <tr><td>Valor subasta</td><td>50.538,67€</td></tr>
+            <tr><td>Puja mínima (50%)</td><td>25.269,34€</td></tr>
+            <tr><td>Depósito</td><td>2.526,93€</td></tr>
+            <tr><td>Valor mercado estimado (zona costera, turismo residencial)</td><td>~55.000 - 70.000€</td></tr>
+            <tr><td>ITP (10%)</td><td>-5.000€</td></tr>
+            <tr><td>Notaría + registro</td><td>-1.200€</td></tr>
+            <tr><td>Reforma estimada</td><td>-15.000€</td></tr>
+            <tr><td>Deudas pendientes (IBI + comunidad)</td><td>-3.000€</td></tr>
+            <tr class="total"><td>Total costes post-puja</td><td>~24.200€</td></tr>
+            <tr class="total highlight"><td><strong>PUJA MÁXIMA RENTABLE</strong></td><td><strong>~35.000 - 40.000€</strong></td></tr>
+          </table>
+        </div>
+        <div class="section">
+          <div class="section-title">Por qué es interesante</div>
+          <div class="risk-item low">✅ Zona costera de Alicante sur — mercado de turismo residencial activo</div>
+          <div class="risk-item low">✅ Puja mínima baja (25.269€) para una vivienda</div>
+          <div class="risk-item low">✅ Recaudación tributaria — proceso más ágil que judicial ordinario</div>
+        </div>
+        <div class="section">
+          <div class="section-title">Riesgos</div>
+          <div class="risk-item med">⚠️ Sin documentos disponibles — no se puede verificar estado de cargas</div>
+          <div class="risk-item med">⚠️ Deuda reclamada alta (8.201€) vs valor — indica acumulación de impuestos</div>
+          <div class="risk-item med">⚠️ San Miguel de Salinas: municipio pequeño (~8k hab), mercado menos líquido fuera de temporada</div>
+        </div>
+        <div class="verdict">
+          <strong>Veredicto:</strong> Potencial interesante si pujas cerca del mínimo (~25-30k). El pueblo tiene comunidad británica/nórdica residente — demanda de alquiler vacacional. El riesgo es la falta de docs: no puedes verificar si hay hipoteca previa sin cert. cargas. Si consigues pedir la nota simple antes de mañana, sería ideal.
+        </div>
+        <div class="links">
+          <a href="https://www.google.com/maps/search/Calle+Lentisco+2,+San+Miguel+de+Salinas,+Alicante" target="_blank" class="link-btn maps">📍 Ver en Google Maps</a>
+          <a href="https://subastas.boe.es/reg/detalleSubasta.php?idSub=SUB-RC-2026-0026I20250145" target="_blank" class="link-btn boe">📄 Ver en BOE</a>
+          <a href="https://subastas-boe.vercel.app/subastas/SUB-RC-2026-0026I20250145" target="_blank" class="link-btn app">🔍 Ver dossier</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- TIER 2: OBSERVAR -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+
+    <div class="auction-card tier-2" data-tier="tier-2">
+      <div class="card-header" onclick="toggle(this)">
+        <div>
+          <div class="card-title">Vivienda · Av. Benidorm 25, La Vila Joiosa</div>
+          <div class="card-location">📍 LA VILA JOIOSA · 03570 · Vivienda · Valor subasta 101.018€</div>
+        </div>
+        <div class="card-badges">
+          <span class="score mid">52</span>
+          <span class="badge observar">Observar</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="section">
+          <div class="section-title">Análisis económico</div>
+          <table class="cost-table">
+            <tr><td>Valor subasta</td><td>101.018,69€</td></tr>
+            <tr><td>Puja mínima (50%)</td><td>50.509,35€</td></tr>
+            <tr><td>Valor mercado estimado (Villajoyosa costa, 1.500-1.800€/m²)</td><td>~90.000 - 120.000€</td></tr>
+            <tr><td>Costes post-adjudicación estimados</td><td>~28.000 - 35.000€</td></tr>
+            <tr class="total highlight"><td><strong>PUJA MÁXIMA RENTABLE</strong></td><td><strong>~50.000 - 55.000€</strong></td></tr>
+          </table>
+        </div>
+        <div class="section">
+          <div class="section-title">Notas</div>
+          <div class="risk-item low">✅ Villajoyosa es zona turística premium entre Benidorm y Alicante</div>
+          <div class="risk-item med">⚠️ Sin documentos — imposible verificar cargas previas</div>
+          <div class="risk-item med">⚠️ Puja mínima de 50.509€ ya está cerca del máximo rentable — poco margen</div>
+        </div>
+        <div class="verdict">
+          <strong>Veredicto:</strong> Zona buena (Villajoyosa costa) pero el margen es estrecho. Si la puja mínima ya es 50.509€ y el máximo rentable es ~55k, solo tienes 5k de margen de maniobra. Solo interesante si NO hay hipoteca previa y el piso está en condiciones aceptables. Sin docs para verificar, es un salto de fe.
+        </div>
+        <div class="links">
+          <a href="https://www.google.com/maps/search/Avenida+Benidorm+25,+La+Vila+Joiosa,+Alicante" target="_blank" class="link-btn maps">📍 Ver en Google Maps</a>
+          <a href="https://subastas.boe.es/reg/detalleSubasta.php?idSub=SUB-RC-2026-0026I20250226" target="_blank" class="link-btn boe">📄 Ver en BOE</a>
+          <a href="https://subastas-boe.vercel.app/subastas/SUB-RC-2026-0026I20250226" target="_blank" class="link-btn app">🔍 Ver dossier</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="auction-card tier-2" data-tier="tier-2">
+      <div class="card-header" onclick="toggle(this)">
+        <div>
+          <div class="card-title">Vivienda · Calle Portugal 47, Algorfa</div>
+          <div class="card-location">📍 ALGORFA · 03169 · Vivienda · Valor subasta 136.165€</div>
+        </div>
+        <div class="card-badges">
+          <span class="score mid">48</span>
+          <span class="badge observar">Observar</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="section">
+          <div class="section-title">Análisis económico</div>
+          <table class="cost-table">
+            <tr><td>Valor subasta</td><td>136.165,89€</td></tr>
+            <tr><td>Puja mínima (50%)</td><td>68.082,95€</td></tr>
+            <tr><td>Valor mercado estimado (Algorfa, zona Vega Baja, turismo residencial)</td><td>~100.000 - 130.000€</td></tr>
+            <tr><td>Costes post-adjudicación estimados</td><td>~25.000 - 35.000€</td></tr>
+            <tr class="total highlight"><td><strong>PUJA MÁXIMA RENTABLE</strong></td><td><strong>~60.000 - 70.000€</strong></td></tr>
+          </table>
+        </div>
+        <div class="section">
+          <div class="section-title">Notas</div>
+          <div class="risk-item low">✅ Algorfa tiene comunidad expatriada grande — demanda de alquiler estable</div>
+          <div class="risk-item med">⚠️ Sin documentos — no hay cert. cargas</div>
+          <div class="risk-item med">⚠️ Puja mínima (68k) está en el TOPE del máximo rentable — margen nulo</div>
+          <div class="risk-item high">🚨 Deuda reclamada solo 3.281€ pero NO es judicial — es recaudación tributaria (SUMA)</div>
+        </div>
+        <div class="verdict">
+          <strong>Veredicto:</strong> La zona es buena pero los números no cuadran. La puja mínima de 68k ya consume todo el margen. Solo valdría la pena si consigues pujar al mínimo exacto y no hay cargas ocultas. Demasiado riesgo para tan poco margen.
+        </div>
+        <div class="links">
+          <a href="https://www.google.com/maps/search/Calle+Portugal+47,+Algorfa,+Alicante" target="_blank" class="link-btn maps">📍 Ver en Google Maps</a>
+          <a href="https://subastas.boe.es/reg/detalleSubasta.php?idSub=SUB-RC-2026-0026I20250185" target="_blank" class="link-btn boe">📄 Ver en BOE</a>
+          <a href="https://subastas-boe.vercel.app/subastas/SUB-RC-2026-0026I20250185" target="_blank" class="link-btn app">🔍 Ver dossier</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="auction-card tier-2" data-tier="tier-2">
+      <div class="card-header" onclick="toggle(this)">
+        <div>
+          <div class="card-title">Solar · Partida Fanadix 38, Benissa</div>
+          <div class="card-location">📍 BENISSA · 03720 · Solar · Valor subasta 202.924€</div>
+        </div>
+        <div class="card-badges">
+          <span class="score mid">44</span>
+          <span class="badge observar">Observar</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="section">
+          <div class="section-title">Análisis económico</div>
+          <table class="cost-table">
+            <tr><td>Valor subasta</td><td>202.924,53€</td></tr>
+            <tr><td>Puja mínima (50%)</td><td>101.462,27€</td></tr>
+            <tr><td>Valor mercado estimado (solar Benissa costa, zona premium)</td><td>~150.000 - 200.000€</td></tr>
+            <tr><td>ITP + gastos</td><td>~12.000 - 15.000€</td></tr>
+            <tr class="total highlight"><td><strong>PUJA MÁXIMA</strong></td><td><strong>~115.000 - 130.000€</strong></td></tr>
+          </table>
+        </div>
+        <div class="section">
+          <div class="section-title">Notas</div>
+          <div class="risk-item low">✅ Benissa-Fanadix es zona de villas de lujo — terreno puede ser muy valioso</div>
+          <div class="risk-item high">🚨 Es un SOLAR — valoración muy diferente a vivienda. Depende de edificabilidad, clasificación urbanística</div>
+          <div class="risk-item med">⚠️ Sin documentos — no se puede verificar estado registral ni urbanístico</div>
+          <div class="risk-item med">⚠️ Puja mínima alta (101k) — necesita capital importante</div>
+        </div>
+        <div class="verdict">
+          <strong>Veredicto:</strong> Potencialmente muy lucrativo si es un solar edificable en Fanadix (zona de chalets de 400-800k). Pero sin documentación urbanística es imposible valorar correctamente. Para inversores con experiencia en suelo y capital disponible. NO para principiantes.
+        </div>
+        <div class="links">
+          <a href="https://www.google.com/maps/search/Partida+Fanadix+38,+Benissa,+Alicante" target="_blank" class="link-btn maps">📍 Ver en Google Maps</a>
+          <a href="https://subastas.boe.es/reg/detalleSubasta.php?idSub=SUB-RC-2026-0026I20250312" target="_blank" class="link-btn boe">📄 Ver en BOE</a>
+          <a href="https://subastas-boe.vercel.app/subastas/SUB-RC-2026-0026I20250312" target="_blank" class="link-btn app">🔍 Ver dossier</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- TIER 3: DESCARTAR -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+
+    <div class="auction-card tier-3" data-tier="tier-3">
+      <div class="card-header" onclick="toggle(this)">
+        <div>
+          <div class="card-title">Garaje · Calle Pascual Martínez 69, Redován</div>
+          <div class="card-location">📍 REDOVÁN · 03370 · Garaje (participación indivisa) · Valor 4.721€</div>
+        </div>
+        <div class="card-badges">
+          <span class="score low">22</span>
+          <span class="badge descartar">Descartar</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="verdict">
+          <strong>Motivo:</strong> Es una participación INDIVISA de una plaza de garaje (9.259/avas partes), no una plaza completa. Deuda reclamada (8.001€) es mayor que el valor del bien (4.721€). Pueblo pequeño, sin documentos. Inviable.
+        </div>
+        <div class="links">
+          <a href="https://www.google.com/maps/search/Calle+Pascual+Martinez+69,+Redovan,+Alicante" target="_blank" class="link-btn maps">📍 Maps</a>
+          <a href="https://subastas-boe.vercel.app/subastas/SUB-RC-2026-0026I20250334" target="_blank" class="link-btn app">🔍 Dossier</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="auction-card tier-3" data-tier="tier-3">
+      <div class="card-header" onclick="toggle(this)">
+        <div>
+          <div class="card-title">Garaje · Calle Jaime I 7, Banyeres de Mariola</div>
+          <div class="card-location">📍 BANYERES DE MARIOLA · 03450 · Garaje · Valor 4.368€</div>
+        </div>
+        <div class="card-badges">
+          <span class="score low">18</span>
+          <span class="badge descartar">Descartar</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="verdict">
+          <strong>Motivo:</strong> Plaza de garaje en pueblo de 7k habitantes. Valor ínfimo (4.368€) con deuda de 5.499€ — la deuda supera el valor del bien. Mercado ilíquido. Sin docs. Los gastos de la compra (ITP, notaría) se comerían cualquier beneficio.
+        </div>
+        <div class="links">
+          <a href="https://www.google.com/maps/search/Calle+Jaime+I+7,+Banyeres+de+Mariola,+Alicante" target="_blank" class="link-btn maps">📍 Maps</a>
+          <a href="https://subastas-boe.vercel.app/subastas/SUB-RC-2026-0026I20250305" target="_blank" class="link-btn app">🔍 Dossier</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="auction-card tier-3" data-tier="tier-3">
+      <div class="card-header" onclick="toggle(this)">
+        <div>
+          <div class="card-title">Garaje · Calle San Bernardo 7, Sant Vicent del Raspeig</div>
+          <div class="card-location">📍 SANT VICENT DEL RASPEIG · 03690 · Garaje · Valor 48.551€</div>
+        </div>
+        <div class="card-badges">
+          <span class="score low">20</span>
+          <span class="badge descartar">Descartar</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="verdict">
+          <strong>Motivo:</strong> Garaje sobrevalorado en 48.551€ — una plaza en San Vicente ronda los 8-15k en mercado. La puja mínima de 24.275€ ya está por encima del valor real. Ni siquiera como inversión tiene sentido. El valor de subasta parece inflado o corresponde a varias plazas agrupadas, pero sin docs no se puede saber.
+        </div>
+        <div class="links">
+          <a href="https://www.google.com/maps/search/Calle+San+Bernardo+7,+Sant+Vicent+del+Raspeig,+Alicante" target="_blank" class="link-btn maps">📍 Maps</a>
+          <a href="https://subastas-boe.vercel.app/subastas/SUB-RC-2026-0026I20250255" target="_blank" class="link-btn app">🔍 Dossier</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="auction-card tier-3" data-tier="tier-3">
+      <div class="card-header" onclick="toggle(this)">
+        <div>
+          <div class="card-title">Garaje/Trastero · Av. Elche 4, Agost</div>
+          <div class="card-location">📍 AGOST · 03698 · Tipo no especificado · Valor 8.081€</div>
+        </div>
+        <div class="card-badges">
+          <span class="score low">25</span>
+          <span class="badge descartar">Descartar</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="verdict">
+          <strong>Motivo:</strong> Bien de muy bajo valor en pueblo pequeño (5k hab). Tipo de bien no especificado. La deuda (3.414€) representa el 42% del valor. Sin docs. Coste de transacción desproporcionado vs valor del activo.
+        </div>
+        <div class="links">
+          <a href="https://www.google.com/maps/search/Avenida+Elche+4,+Agost,+Alicante" target="_blank" class="link-btn maps">📍 Maps</a>
+          <a href="https://subastas-boe.vercel.app/subastas/SUB-RC-2026-0026I20250254" target="_blank" class="link-btn app">🔍 Dossier</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="auction-card tier-3" data-tier="tier-3">
+      <div class="card-header" onclick="toggle(this)">
+        <div>
+          <div class="card-title">Trastero · Calle Raval 58, Tibi</div>
+          <div class="card-location">📍 TIBI · 03109 · Trastero · Valor 3.153€</div>
+        </div>
+        <div class="card-badges">
+          <span class="score low">12</span>
+          <span class="badge descartar">Descartar</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="verdict">
+          <strong>Motivo:</strong> Trastero en pueblo de 1.600 habitantes valorado en 3.153€. La deuda (1.570€) es la mitad del valor del bien. Sin mercado secundario, sin rentabilidad posible. Los gastos de notaría solos probablemente superan el valor del activo.
+        </div>
+        <div class="links">
+          <a href="https://www.google.com/maps/search/Calle+Raval+58,+Tibi,+Alicante" target="_blank" class="link-btn maps">📍 Maps</a>
+          <a href="https://subastas-boe.vercel.app/subastas/SUB-RC-2026-0026I20250182" target="_blank" class="link-btn app">🔍 Dossier</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="auction-card tier-3" data-tier="tier-3">
+      <div class="card-header" onclick="toggle(this)">
+        <div>
+          <div class="card-title">Finca rústica/Industrial · Camino de Beniel 90, Orihuela</div>
+          <div class="card-location">📍 ORIHUELA · 03300 · Finca rústica · Valor 100.781€</div>
+        </div>
+        <div class="card-badges">
+          <span class="score low">15</span>
+          <span class="badge descartar">Descartar</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="verdict">
+          <strong>Motivo:</strong> Finca rústica/industrial con deuda de 24.900€ y puja mínima de 50.390€. Bienes rústicos tienen valoración y liquidez completamente diferente. Sin documentos, sin referencia catastral visible, sin posibilidad de verificar uso urbanístico. Además, la zona de Camino de Beniel (Orihuela pedanías) tiene historial de inundaciones DANA. Demasiado riesgo para un perfil de inversión residencial.
+        </div>
+        <div class="links">
+          <a href="https://www.google.com/maps/search/Camino+de+Beniel+90,+Orihuela,+Alicante" target="_blank" class="link-btn maps">📍 Maps</a>
+          <a href="https://subastas-boe.vercel.app/subastas/SUB-RC-2026-0026I20250104" target="_blank" class="link-btn app">🔍 Dossier</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="auction-card tier-3" data-tier="tier-3">
+      <div class="card-header" onclick="toggle(this)">
+        <div>
+          <div class="card-title">Trastero · Calle Villena 12, Mutxamel</div>
+          <div class="card-location">📍 MUTXAMEL · 03110 · Trastero · Valor 2.747€ (¡deuda 10.989€!)</div>
+        </div>
+        <div class="card-badges">
+          <span class="score low">8</span>
+          <span class="badge descartar">Descartar</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="verdict">
+          <strong>Motivo:</strong> El caso más absurdo del lote: un trastero de 2.747€ con una deuda de 10.989€. La deuda es 4x el valor del bien. Esto lo pone Hacienda para intentar cobrar la deuda por otros bienes del deudor. Incluso si te lo llevas por la puja mínima de 274€, los gastos de escrituración superan el valor. 0% de sentido económico. El análisis de Gemini le daba un 75 con recomendación "comprar" — esto demuestra por qué el scoring antiguo era peligroso.
+        </div>
+        <div class="links">
+          <a href="https://www.google.com/maps/search/Calle+Villena+12,+Mutxamel,+Alicante" target="_blank" class="link-btn maps">📍 Maps</a>
+          <a href="https://subastas-boe.vercel.app/subastas/SUB-RC-2026-0026I20250103" target="_blank" class="link-btn app">🔍 Dossier</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function toggle(header) {
+  const body = header.nextElementSibling;
+  body.classList.toggle('open');
+}
+
+function filterCards(tier) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+
+  document.querySelectorAll('.auction-card').forEach(card => {
+    if (tier === 'all' || card.dataset.tier === tier) {
+      card.style.display = '';
+    } else {
+      card.style.display = 'none';
+    }
+  });
+}
+
+// Open tier-1 cards by default
+document.querySelectorAll('.tier-1 .card-body').forEach(b => b.classList.add('open'));
+</script>
+</body>
+</html>
