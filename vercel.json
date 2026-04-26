@@ -17,7 +17,10 @@
     {
       "path": "/api/cron/refresh-subastas/46",
       "schedule": "50 5 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-subastas-all",
+      "schedule": "*/15 6-23 * * *"
     }
   ]
 }
-

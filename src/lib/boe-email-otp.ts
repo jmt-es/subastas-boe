@@ -1,3 +1,8 @@
+import {
+  getLatestBoeImapEmails,
+  isBoeEmailImapConfigured,
+} from "./boe-email-otp-imap";
+
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GMAIL_API_BASE_URL = "https://gmail.googleapis.com/gmail/v1/users";
 
@@ -211,6 +216,10 @@ async function gmailGetJson<T>(path: string, accessToken: string): Promise<T> {
 }
 
 export function isBoeEmailOtpConfigured(): boolean {
+  return isBoeEmailImapConfigured() || isBoeEmailOauthConfigured();
+}
+
+export function isBoeEmailOauthConfigured(): boolean {
   return Boolean(
     process.env.GMAIL_CLIENT_ID?.trim() &&
       process.env.GMAIL_CLIENT_SECRET?.trim() &&
@@ -221,6 +230,40 @@ export function isBoeEmailOtpConfigured(): boolean {
 export async function getLatestBoeEmailOtp(
   purpose: BoeEmailOtpPurpose = "login"
 ): Promise<BoeEmailOtp | null> {
+  if (isBoeEmailImapConfigured()) {
+    try {
+      const query = buildPurposeQuery(purpose);
+      const messages = await getLatestBoeImapEmails(query);
+
+      for (const message of messages) {
+        const code = extractBoeOtpCode(`${message.subject}\n${message.bodyText}`);
+
+        if (!code) {
+          continue;
+        }
+
+        const resolvedPurpose = inferPurpose(message.subject, message.bodyText);
+        if (purpose !== "any" && resolvedPurpose !== purpose) {
+          continue;
+        }
+
+        return {
+          code,
+          messageId: message.messageId,
+          receivedAt: message.receivedAt,
+          subject: message.subject,
+          purpose: resolvedPurpose,
+        };
+      }
+
+      return null;
+    } catch (error) {
+      if (!isBoeEmailOauthConfigured()) {
+        throw error;
+      }
+    }
+  }
+
   const config = getGmailConfig();
   const accessToken = await fetchGoogleAccessToken(config);
   const query = buildPurposeQuery(purpose);

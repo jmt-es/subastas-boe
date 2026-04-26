@@ -34,6 +34,8 @@ CRON_SECRET=token_bearer_para_cron_de_vercel
 GMAIL_CLIENT_ID=...
 GMAIL_CLIENT_SECRET=...
 GMAIL_REFRESH_TOKEN=...
+GMAIL_IMAP_USER=javmartorc@gmail.com
+GMAIL_IMAP_APP_PASSWORD=app_password_de_google
 GMAIL_USER_ID=me
 BOE_GMAIL_QUERY=from:noresponder-subastas@boe.es newer_than:2d
 ```
@@ -65,7 +67,7 @@ La estrategia recomendada para automatizar la ingesta es:
 
 1. Mantener `BOE_LOGIN_USER` y `BOE_LOGIN_PASSWORD` en el backend.
 2. Resolver el CAPTCHA intermedio del BOE con Gemini Vision.
-3. Leer el OTP del BOE por Gmail API con permisos `readonly`.
+3. Leer el OTP del BOE por IMAP con App Password de Gmail, o por Gmail API con permisos `readonly` como fallback.
 4. Guardar la sesion BOE valida en MongoDB y reutilizarla mientras siga viva.
 5. Solo cuando esa sesion falle, refrescarla con `usuario + contrasena + CAPTCHA + OTP`.
 6. Dejar el flujo de `reset password` como recuperacion manual, porque ahi si intervienen email y SMS distintos.
@@ -79,7 +81,16 @@ La app intenta resolver la sesion en este orden:
 3. Sesion persistida en MongoDB (`runtime_state/_id=boe-session`).
 4. Login completo por BOE + OTP de Gmail solo si todo lo anterior ha caducado.
 
-### Verificar lectura del OTP por Gmail API
+### Verificar lectura del OTP por Gmail
+
+La opcion preferida para no depender de refresh tokens OAuth es IMAP con App Password:
+
+```bash
+GMAIL_IMAP_USER=javmartorc@gmail.com
+GMAIL_IMAP_APP_PASSWORD=xxxx xxxx xxxx xxxx
+```
+
+La cuenta debe tener IMAP habilitado en Gmail y verificacion en dos pasos para poder crear una App Password. OAuth queda soportado como fallback, pero si el proyecto OAuth esta en `Testing`, Google puede caducar el refresh token a los 7 dias.
 
 ```bash
 npm run check:boe-otp
@@ -118,6 +129,10 @@ La parte automatica queda montada dentro de Vercel:
   - `GET /api/cron/refresh-subastas/30`
   - `GET /api/cron/refresh-subastas/02`
   - `GET /api/cron/refresh-subastas/46`
+- Hay otro barrido incremental para todas las provincias:
+  - `GET /api/cron/refresh-subastas-all`
+  - Procesa una provincia por invocacion, mantiene cursor en `runtime_state/_id=subastas-refresh-all` y por defecto corta en 28 detalles nuevos para no acercarse al timeout de Vercel.
+  - Las subastas con `scrapedAt` reciente se saltan, de modo que las siguientes vueltas avanzan por paginas profundas sin repetir trabajo.
 - Cada ejecucion guarda su ultimo estado en MongoDB (`runtime_state/_id=subastas-refresh:<provincia>`).
 
 Si `CRON_SECRET` esta definido, Vercel enviara `Authorization: Bearer <CRON_SECRET>` a esas rutas. Para inspeccionar el ultimo estado de los jobs manualmente:
@@ -125,6 +140,12 @@ Si `CRON_SECRET` esta definido, Vercel enviara `Authorization: Bearer <CRON_SECR
 ```bash
 curl -H "x-boe-admin-token: $BOE_ADMIN_TOKEN" \
   "http://localhost:3000/api/cron/refresh-subastas"
+```
+
+Backfill local controlado:
+
+```bash
+npm run refresh:all-subastas -- --provinces=01,02,03 --max-paginas=0 --max-details=30 --skip-fresh-hours=24
 ```
 
 ## Scripts de pipeline

@@ -10,11 +10,13 @@ export interface SubastaRefreshStatus {
   source: "admin" | "cron";
   executionRegion: string | null;
   maxPaginas: number;
+  maxDetails?: number;
   forceFresh: boolean;
   startedAt: string;
   finishedAt?: string;
   durationMs?: number;
   count?: number;
+  skippedFresh?: number;
   error?: string;
   updatedAt: string;
 }
@@ -29,7 +31,7 @@ export async function saveSubastaRefreshStatus(
   const col = await getRuntimeStateCollection<SubastaRefreshStatus>();
   const unset: Record<string, "" | 1> = {};
 
-  for (const field of ["finishedAt", "durationMs", "count", "error"] as const) {
+  for (const field of ["maxDetails", "finishedAt", "durationMs", "count", "skippedFresh", "error"] as const) {
     if (input[field] === undefined) {
       unset[field] = "";
     }

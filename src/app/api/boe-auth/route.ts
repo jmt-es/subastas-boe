@@ -2,8 +2,10 @@ import { NextRequest } from "next/server";
 import {
   getLatestBoeEmailOtp,
   isBoeEmailOtpConfigured,
+  isBoeEmailOauthConfigured,
   type BoeEmailOtpPurpose,
 } from "@/lib/boe-email-otp";
+import { isBoeEmailImapConfigured } from "@/lib/boe-email-otp-imap";
 import { isBoeCaptchaSolverConfigured } from "@/lib/boe-captcha";
 import {
   BoeLoginError,
@@ -49,6 +51,8 @@ export async function GET(request: NextRequest) {
   return Response.json({
     executionRegion: process.env.VERCEL_REGION ?? null,
     gmailConfigured: isBoeEmailOtpConfigured(),
+    gmailImapConfigured: isBoeEmailImapConfigured(),
+    gmailOauthConfigured: isBoeEmailOauthConfigured(),
     captchaSolverConfigured: isBoeCaptchaSolverConfigured(),
     boeLoginConfigured: isBoePasswordLoginConfigured(),
     envSessionConfigured: Boolean(session.sessId),
@@ -94,6 +98,8 @@ export async function POST(request: NextRequest) {
       success: true,
       executionRegion: process.env.VERCEL_REGION ?? null,
       gmailConfigured: isBoeEmailOtpConfigured(),
+      gmailImapConfigured: isBoeEmailImapConfigured(),
+      gmailOauthConfigured: isBoeEmailOauthConfigured(),
       captchaSolverConfigured: isBoeCaptchaSolverConfigured(),
       boeLoginConfigured: isBoePasswordLoginConfigured(),
       sessionActive: login.active,
@@ -115,6 +121,8 @@ export async function POST(request: NextRequest) {
         executionRegion: process.env.VERCEL_REGION ?? null,
         error: error instanceof Error ? error.message : String(error),
         captchaSolverConfigured: isBoeCaptchaSolverConfigured(),
+        gmailImapConfigured: isBoeEmailImapConfigured(),
+        gmailOauthConfigured: isBoeEmailOauthConfigured(),
         ...(error instanceof BoeLoginError && error.details ? { debug: error.details } : {}),
       },
       { status: 500 }

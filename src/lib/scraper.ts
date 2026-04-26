@@ -520,9 +520,11 @@ export interface ScrapeOptions {
   estado?: string;
   provincia?: string;
   maxPaginas?: number;
+  maxDetails?: number;
   delayMs?: number;
   sessionId?: string; // BOE SESSID cookie for logged-in access
   simpleSaml?: string;
+  shouldSkipSubasta?: (id: string) => boolean | Promise<boolean>;
 }
 
 export interface ScrapeProgress {
@@ -543,9 +545,11 @@ export async function scrapeSubastas(
     estado = "EJ",
     provincia = "",
     maxPaginas = 2,
+    maxDetails = 0,
     delayMs = REQUEST_DELAY,
     sessionId,
     simpleSaml,
+    shouldSkipSubasta,
   } = options;
 
   const session = resolveBoeSession({ sessionId, simpleSaml });
@@ -554,6 +558,7 @@ export async function scrapeSubastas(
   cookies = [];
   const todasSubastas: Subasta[] = [];
   let pagina = 0;
+  let detailAttempts = 0;
 
   // Inject session cookie if provided (logged-in access)
   if (session.sessId) cookies.push(`SESSID=${session.sessId}`);
@@ -613,7 +618,19 @@ export async function scrapeSubastas(
 
     for (let i = 0; i < links.length; i++) {
       const info = links[i];
+
+      if (shouldSkipSubasta && (await shouldSkipSubasta(info.id))) {
+        console.log(`  ⏭️  [${i + 1}/${links.length}] ${info.id} ya fresco, omitido`);
+        continue;
+      }
+
+      if (maxDetails > 0 && detailAttempts >= maxDetails) {
+        console.log(`  ⏹️  límite de ${maxDetails} detalles alcanzado`);
+        return todasSubastas;
+      }
+
       console.log(`  🔍 [${todasSubastas.length + 1}] ${info.id} (${i + 1}/${links.length} en pág ${pagina + 1})`);
+      detailAttempts += 1;
 
       onProgress?.({
         pagina: pagina + 1,
